@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = makeMainMenu()
+        LoginItem.apply(AppSettings.launchAtLogin)
         let controller = CompanionController()
         self.controller = controller
         controller.start()

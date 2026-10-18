@@ -67,6 +67,63 @@ enum TextProcessing {
         return (core, trailing)
     }
 
+    // MARK: - Spoken commands
+
+    /// Phrases that delete what was just said, in English and French.
+    static let scratchCommands = ["scratch that", "delete that", "efface ça", "efface ca", "annule ça", "annule ca"]
+    static let paragraphCommands = ["new paragraph", "nouveau paragraphe"]
+    static let lineCommands = ["new line", "next line", "nouvelle ligne", "à la ligne", "a la ligne"]
+
+    /// Acts on commands spoken while dictating:
+    /// - "scratch that" said as its own phrase removes the phrase before it; said at the end of a
+    ///   phrase, it removes that phrase;
+    /// - "new line" and "new paragraph" become line breaks, and the next word gets a capital.
+    /// A comma or full stop before a line command is kept; one the recognizer adds after it is dropped.
+    static func applyVoiceCommands(_ text: String) -> String {
+        var kept: [String] = []
+        for sentence in sentences(in: text) {
+            let core = sentence.lowercased()
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+            if scratchCommands.contains(core) {
+                if !kept.isEmpty { kept.removeLast() }
+                continue
+            }
+            if scratchCommands.contains(where: { core.hasSuffix(" " + $0) }) {
+                continue
+            }
+            kept.append(sentence)
+        }
+        var result = kept.joined().trimmingCharacters(in: .whitespaces)
+        result = replacingCommands(paragraphCommands, in: result, with: "\n\n")
+        result = replacingCommands(lineCommands, in: result, with: "\n")
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Splits text into sentences, each keeping its end punctuation and following spaces.
+    private static func sentences(in text: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: "[^.!?\\n]+(?:[.!?]+|\\n|$)\\s*") else { return [text] }
+        let ns = text as NSString
+        return regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+            .map { ns.substring(with: $0.range) }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    private static func replacingCommands(_ commands: [String], in text: String, with breaks: String) -> String {
+        var result = text
+        for command in commands {
+            let pattern = "\\s*(?<![\\p{L}\\p{N}])" + NSRegularExpression.escapedPattern(for: command)
+                + "(?![\\p{L}\\p{N}])[,.!?;:]*\\s*"
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            while let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+                  let range = Range(match.range, in: result) {
+                var after = String(result[range.upperBound...])
+                after = after.prefix(1).uppercased() + after.dropFirst()
+                result = String(result[..<range.lowerBound]) + breaks + after
+            }
+        }
+        return result
+    }
+
     // MARK: - Replacements and snippets
 
     /// Replaces whole words or phrases, ignoring case. A phrase never matches inside a longer word.

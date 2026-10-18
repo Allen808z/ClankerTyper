@@ -33,6 +33,9 @@ enum SelectionReader {
 /// Posts keystrokes to the app in front, and waits for the user's own modifier keys to be up.
 @MainActor
 enum KeyStroke {
+    static let keyZ: CGKeyCode = 6
+    static let keyDelete: CGKeyCode = 51
+
     static func post(keyCode: CGKeyCode, flags: CGEventFlags) {
         let source = CGEventSource(stateID: .combinedSessionState)
         let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)

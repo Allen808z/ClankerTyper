@@ -2,8 +2,14 @@ import AppKit
 
 /// Menu bar item. ClankerTyper has no Dock icon; the main window opens from here.
 @MainActor
-final class StatusMenu: NSObject {
+final class StatusMenu: NSObject, NSMenuDelegate {
     var onOpenHub: (() -> Void)?
+    var onUndoLast: (() -> Void)?
+    var onOpenScratchpad: (() -> Void)?
+    var onSelectionAction: ((Rewriter.Style) -> Void)?
+    var onManageActions: (() -> Void)?
+    /// The user's saved actions, read each time the submenu opens.
+    var customActions: (() -> [CustomAction])?
     var onPasteLast: (() -> Void)?
     var onFixGrammar: (() -> Void)?
     var onImproveWriting: (() -> Void)?
@@ -22,6 +28,7 @@ final class StatusMenu: NSObject {
     private var askItem: NSMenuItem?
     private var hintItem: NSMenuItem?
     private var languageItems: [NSMenuItem] = []
+    private let selectionMenu = NSMenu(title: "Highlighted text")
     static let readyHint = "Hold ⌃⌥ to talk"
 
     override init() {
@@ -39,12 +46,21 @@ final class StatusMenu: NSObject {
         let pasteLast = makeItem("Paste last transcript", #selector(pasteLastTranscript), "v")
         pasteLast.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(pasteLast)
+        let undo = makeItem("Undo last dictation", #selector(undoLast), "z")
+        undo.keyEquivalentModifierMask = [.control, .option]
+        menu.addItem(undo)
+        menu.addItem(makeItem("Open Scratchpad", #selector(openScratchpad), ""))
+        menu.addItem(.separator())
         let fix = makeItem("Fix grammar of selection", #selector(fixGrammar), "g")
         fix.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(fix)
         let improve = makeItem("Improve writing of selection", #selector(improveWriting), "e")
         improve.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(improve)
+        selectionMenu.delegate = self
+        let selectionRoot = NSMenuItem(title: "More for highlighted text", action: nil, keyEquivalent: "")
+        selectionRoot.submenu = selectionMenu
+        menu.addItem(selectionRoot)
         let ask = makeItem("Ask by typing…", #selector(ask), "k")
         askItem = ask
         menu.addItem(ask)
@@ -100,6 +116,26 @@ final class StatusMenu: NSObject {
     @objc private func openHub() { onOpenHub?() }
     @objc private func pasteLastTranscript() { onPasteLast?() }
     @objc private func fixGrammar() { onFixGrammar?() }
+    @objc private func undoLast() { onUndoLast?() }
+    @objc private func openScratchpad() { onOpenScratchpad?() }
+
+    /// Rebuilt each time it opens, so new saved actions show up.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === selectionMenu else { return }
+        menu.removeAllItems()
+        for style in Rewriter.Style.selectionActions where style != .grammar && style != .improve {
+            menu.addItem(ClosureMenuItem(style.title) { [weak self] in self?.onSelectionAction?(style) })
+        }
+        let custom = customActions?() ?? []
+        if !custom.isEmpty {
+            menu.addItem(.separator())
+            for action in custom {
+                menu.addItem(ClosureMenuItem(action.name) { [weak self] in self?.onSelectionAction?(.custom(action.instruction)) })
+            }
+        }
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("Manage actions…") { [weak self] in self?.onManageActions?() })
+    }
     @objc private func improveWriting() { onImproveWriting?() }
 
     private func makeItem(_ title: String, _ action: Selector, _ key: String) -> NSMenuItem {

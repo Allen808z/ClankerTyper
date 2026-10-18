@@ -78,9 +78,11 @@ struct RewriterTests {
     }
 
     @Test func instructionsAreWrittenInTheTextsLanguage() {
-        for style in [Rewriter.Style.dictation, .grammar, .improve] {
-            #expect(Rewriter.instructions(style: style, language: .english).contains("never a question or request"))
-            #expect(Rewriter.instructions(style: style, language: .french).contains("jamais une question"))
+        // Every prompt tells the model the text is not addressed to it, in the text's language.
+        for style in [Rewriter.Style.dictation, .grammar, .improve, .shorter, .formal, .summarize] {
+            let english = Rewriter.instructions(style: style, language: .english)
+            #expect(english.contains("never a question or request") || english.contains("never reply"))
+            #expect(Rewriter.instructions(style: style, language: .french).contains("jamais"))
         }
         #expect(Rewriter.prompt("salut", language: .french) == "<texte>salut</texte>")
         #expect(Rewriter.prompt("hi", language: .english) == "<text>hi</text>")
@@ -100,5 +102,42 @@ struct RewriterTests {
         }
         let result = try await Rewriter(model: FixedModel()).rewrite(" me and him goes to the store ", style: .grammar, timeout: 5)
         #expect(result == " He and I go to the store. ")
+    }
+
+    @Test func translationMustChangeTheLanguage() throws {
+        _ = try Rewriter.validate("Je suis allé au magasin hier et j'ai acheté des pommes.",
+                                  original: "I went to the store yesterday and bought some apples.", style: .translate)
+        #expect(throws: Rewriter.RewriteError.offTrack) {
+            try Rewriter.validate("I went to the shop yesterday and bought apples.",
+                                  original: "I went to the store yesterday and bought some apples.", style: .translate)
+        }
+    }
+
+    @Test func summaryMayBeMuchShorter() throws {
+        let long = String(repeating: "The launch moved to Thursday because the client asked for more tests on the payment flow. ", count: 6)
+        _ = try Rewriter.validate("The launch moved to Thursday for more payment tests.", original: long, style: .summarize)
+    }
+
+    @Test func customInstructionsAreNotLimited() throws {
+        _ = try Rewriter.validate("- Milk\n- Eggs\n- Bread", original: "buy milk eggs and bread", style: .custom("Turn into a bullet list"))
+    }
+
+    @Test func instructionsExistForEveryAction() {
+        for style in Rewriter.Style.selectionActions + [.custom("Use bullet points")] {
+            #expect(!Rewriter.instructions(style: style, language: .english).isEmpty)
+            #expect(!Rewriter.instructions(style: style, language: .french).isEmpty)
+        }
+        // Translation instructions are written in the target language.
+        #expect(Rewriter.instructions(style: .translate, language: .english).contains("Traduis"))
+        #expect(Rewriter.instructions(style: .translate, language: .french).contains("Translate"))
+    }
+
+    @Test func dropsPlaceholderLines() {
+        #expect(Rewriter.removingPlaceholders("Hi Sam,\n\nThank you for the flowers!\n\nBest,\n[Your Name]") == "Hi Sam,\n\nThank you for the flowers!\n\nBest,")
+    }
+
+    @Test func summaryLimitFollowsTheLength() {
+        #expect(Rewriter.instructions(style: .summarize, language: .english, wordCount: 100).contains("at most 50 words"))
+        #expect(Rewriter.instructions(style: .summarize, language: .english, wordCount: 10).contains("at most 15 words"))
     }
 }

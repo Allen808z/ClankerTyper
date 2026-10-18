@@ -91,6 +91,32 @@ enum FocusTracker {
         CGRect(x: rect.minX, y: primaryScreenHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 
+    /// Selects a range of the element's text (UTF-16 offsets, as NSString counts them).
+    @discardableResult
+    static func select(_ range: NSRange, in element: AXUIElement) -> Bool {
+        var cfRange = CFRange(location: range.location, length: range.length)
+        guard let value = AXValueCreate(.cfRange, &cfRange) else { return false }
+        return AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, value) == .success
+    }
+
+    /// Role names for things that are clearly not a place to type: lists, tables, the desktop.
+    private static let nonTextRoles: Set<String> = [
+        "AXList", "AXOutline", "AXTable", "AXBrowser", "AXScrollArea", "AXWindow", "AXButton",
+        "AXImage", "AXMenu", "AXMenuBar", "AXMenuItem", "AXToolbar", "AXGroup", "AXRow", "AXCell",
+    ]
+
+    /// True when the user is clearly not in a text field, so a dictation should go to the
+    /// scratchpad instead of being pasted. Unknown cases count as a text field: the paste is
+    /// attempted, and only a paste that no app reads falls back to the scratchpad.
+    static func clearlyNotTyping(_ snapshot: FocusSnapshot) -> Bool {
+        guard let element = snapshot.element else {
+            return snapshot.app?.bundleIdentifier == "com.apple.finder"
+        }
+        if isEditable(element) { return false }
+        guard let role = string(element, kAXRoleAttribute) else { return false }
+        return nonTextRoles.contains(role)
+    }
+
     /// The highlighted text in the element, when the app exposes it.
     static func selectedText(_ element: AXUIElement) -> String? {
         string(element, kAXSelectedTextAttribute)

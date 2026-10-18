@@ -98,15 +98,20 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.showCompanion) private var showCompanion = true
     @AppStorage(AppSettings.Key.showInDock) private var showInDock = true
     @AppStorage(AppSettings.Key.selectionToolbar) private var selectionToolbar = true
+    @AppStorage(AppSettings.Key.launchAtLogin) private var launchAtLogin = true
+    @State private var loginState = LoginItem.state
 
     var body: some View {
         Form {
             Section("Shortcuts") {
                 LabeledContent("Dictate", value: "Hold ⌃ Control + ⌥ Option")
                 LabeledContent("Hands-free", value: "Double-tap ⌃⌥, tap again to stop")
+                LabeledContent("Command mode", value: "Hold ⌃⌥⇧ and say what to do")
+                LabeledContent("Undo last dictation", value: "⌃⌥Z")
                 LabeledContent("Paste last transcript", value: "⌃⌥V")
                 LabeledContent("Fix grammar of highlighted text", value: "⌃⌥G")
                 LabeledContent("Improve writing of highlighted text", value: "⌃⌥E")
+                LabeledContent("While talking", value: "“new line”, “new paragraph”, “scratch that”")
             }
 
             Section("Languages") {
@@ -188,6 +193,32 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            }
+
+            Section("App") {
+                Toggle("Open ClankerTyper when I log in", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, enabled in
+                        LoginItem.apply(enabled)
+                        loginState = LoginItem.state
+                    }
+                if loginState == .needsApproval {
+                    Text("Allow it in System Settings → General → Login Items.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if loginState == .notInstalled {
+                    Text("Only the copy in Applications can open at login.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Toggle("Show ClankerTyper in the Dock", isOn: $showInDock)
+                    .onChange(of: showInDock) { _, visible in
+                        NSApp.setActivationPolicy(visible ? .regular : .accessory)
+                        // Switching policy can drop this window behind others; keep it in front.
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                Text("It is always in the menu bar at the top right.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Companion") {

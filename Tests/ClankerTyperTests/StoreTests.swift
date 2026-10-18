@@ -39,6 +39,29 @@ struct StoreTests {
         #expect(store.replacements.map(\.to) == ["ClankerTyper"])
     }
 
+    @Test func fileFromAnOlderVersionStillLoads() throws {
+        // Written before custom actions and the scratchpad existed: it must not be set aside.
+        let dir = temporaryDirectory()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let old = #"{"history":[],"vocabulary":[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","word":"Clanker","learned":true,"added":"2026-10-18T09:00:00Z"}],"replacements":[],"snippets":[]}"#
+        try Data(old.utf8).write(to: dir.appendingPathComponent("store.json"))
+        let store = ClankerTyperStore(directory: dir)
+        #expect(store.vocabulary.map(\.word) == ["Clanker"])
+        #expect(store.customActions.isEmpty)
+        #expect(store.scratchpad.isEmpty)
+    }
+
+    @Test func customActionsAndScratchpadSurviveRelaunch() {
+        let dir = temporaryDirectory()
+        let store = ClankerTyperStore(directory: dir)
+        store.addCustomAction(name: "Bullets", instruction: "Turn into bullet points")
+        store.appendToScratchpad("first note")
+        store.appendToScratchpad("second note")
+        let reopened = ClankerTyperStore(directory: dir)
+        #expect(reopened.customActions.map(\.name) == ["Bullets"])
+        #expect(reopened.scratchpad == "first note\n\nsecond note")
+    }
+
     @Test func unreadableFileIsKeptAside() throws {
         let dir = temporaryDirectory()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

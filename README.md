@@ -23,11 +23,17 @@ Allow Microphone, Speech Recognition and Accessibility when asked.
 |---|---|
 | Hold ⌃ Control + ⌥ Option | Dictate while held |
 | Double-tap ⌃⌥ | Hands-free: keep dictating until you tap again |
+| Hold ⌃⌥⇧ | Command mode: say what to do with highlighted text, or what to write |
+| ⌃⌥Z | Undo the last dictation |
 | ⌃⌥V | Paste the last transcript again |
 | ⌃⌥G | Fix the grammar of highlighted text in any app |
 | ⌃⌥E | Improve the writing of highlighted text in any app |
 
 - A REC bubble above the pointer shows your words as you speak.
+- Say "new line", "new paragraph" or "scratch that" (French: "nouvelle ligne", "à la ligne",
+  "nouveau paragraphe", "efface ça") while dictating.
+- With no text field to type into, dictation goes to a floating Scratchpad.
+- ClankerTyper opens at login (Settings → App).
 - Pauses are kept: each phrase ends with a full stop and the next starts with a capital.
 - English and French can both be on; each phrase keeps the more confident language.
 - Words are pasted where you were typing, even if focus moved while you talked, and always stay
@@ -41,6 +47,8 @@ Allow Microphone, Speech Recognition and Accessibility when asked.
 - Highlight text anywhere and press ⌃⌥G or ⌃⌥E: the selection is replaced (⌘Z undoes it).
   Or just highlight editable text, however you select it: Fix grammar and Improve writing buttons
   appear above it in apps that report their selection to macOS.
+  More actions: make shorter, more formal, more friendly, translate English ↔ French, summarize,
+  and your own saved instructions (main window → Actions).
   Check the prompts from Terminal with
   `/Applications/ClankerTyper.app/Contents/MacOS/ClankerTyper --rewrite grammar "text"`.
 

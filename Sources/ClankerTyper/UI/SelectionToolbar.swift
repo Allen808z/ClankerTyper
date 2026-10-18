@@ -12,6 +12,9 @@ final class SelectionToolbar {
     var onAction: ((Rewriter.Style, FocusSnapshot) -> Void)?
     /// Asked before showing, so the toolbar stays away while recording or rewriting.
     var isBusy: (() -> Bool)?
+    /// The user's saved actions, listed under More.
+    var customActions: (() -> [CustomAction])?
+    var onManageActions: (() -> Void)?
 
     private let observer = SelectionObserver()
     private var monitors: [Any] = []
@@ -166,9 +169,31 @@ final class SelectionToolbar {
         onAction?(style, target)
     }
 
+    /// The other actions, and the user's own, in a menu under the More button.
+    private func showMoreMenu() {
+        hideTimer?.invalidate()
+        let menu = NSMenu()
+        for style in Rewriter.Style.selectionActions where style != .grammar && style != .improve {
+            menu.addItem(ClosureMenuItem(style.title) { [weak self] in self?.choose(style) })
+        }
+        let custom = customActions?() ?? []
+        if !custom.isEmpty {
+            menu.addItem(.separator())
+            for action in custom {
+                menu.addItem(ClosureMenuItem(action.name) { [weak self] in self?.choose(.custom(action.instruction)) })
+            }
+        }
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("Add your own action…") { [weak self] in
+            self?.hide()
+            self?.onManageActions?()
+        })
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
     private func makePanel() -> NSPanel {
         let panel = ToolbarPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 268, height: 36),
+            contentRect: NSRect(x: 0, y: 0, width: 352, height: 36),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -182,10 +207,11 @@ final class SelectionToolbar {
         let view = SelectionToolbarView(
             fix: { [weak self] in self?.choose(.grammar) },
             improve: { [weak self] in self?.choose(.improve) },
+            more: { [weak self] in self?.showMoreMenu() },
             close: { [weak self] in self?.dismiss() }
         )
         let hosting = FirstClickHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 268, height: 36)
+        hosting.frame = NSRect(x: 0, y: 0, width: 352, height: 36)
         panel.contentView = hosting
         return panel
     }
@@ -205,6 +231,7 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
 private struct SelectionToolbarView: View {
     let fix: () -> Void
     let improve: () -> Void
+    let more: () -> Void
     let close: () -> Void
 
     var body: some View {
@@ -212,6 +239,8 @@ private struct SelectionToolbarView: View {
             ToolbarButton(title: "Fix grammar", symbol: "checkmark.seal", action: fix)
             Divider().frame(height: 16).overlay(Color.white.opacity(0.2))
             ToolbarButton(title: "Improve writing", symbol: "wand.and.stars", action: improve)
+            Divider().frame(height: 16).overlay(Color.white.opacity(0.2))
+            ToolbarButton(title: "More", symbol: "chevron.down", action: more)
             Button(action: close) {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .bold))
@@ -223,7 +252,7 @@ private struct SelectionToolbarView: View {
             .help("Close")
         }
         .padding(.horizontal, 5)
-        .frame(width: 268, height: 36)
+        .frame(width: 352, height: 36)
         .background(Capsule().fill(Color(white: 0.1).opacity(0.95)))
         .overlay(Capsule().strokeBorder(Color.white.opacity(0.1)))
     }

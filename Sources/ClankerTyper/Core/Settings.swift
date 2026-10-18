@@ -21,6 +21,7 @@ enum AppSettings {
         static let showCompanion = "showCompanion"
         static let showInDock = "showInDock"
         static let selectionToolbar = "selectionToolbar"
+        static let launchAtLogin = "launchAtLogin"
         static let onboardingDone = "onboardingDone"
     }
 
@@ -161,6 +162,12 @@ enum AppSettings {
     static var selectionToolbar: Bool {
         get { defaults.object(forKey: Key.selectionToolbar) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.selectionToolbar) }
+    }
+
+    /// Open ClankerTyper automatically when the user logs in.
+    static var launchAtLogin: Bool {
+        get { defaults.object(forKey: Key.launchAtLogin) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.launchAtLogin) }
     }
 
     static var activationPolicy: NSApplication.ActivationPolicy {

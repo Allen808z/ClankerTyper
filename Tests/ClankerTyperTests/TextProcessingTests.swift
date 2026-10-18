@@ -135,3 +135,33 @@ struct LearningRuleTests {
         #expect(TextProcessing.editDistance("", "abc") == 3)
     }
 }
+
+@Suite("Spoken commands")
+struct VoiceCommandTests {
+    @Test func scratchThatRemovesThePreviousPhrase() {
+        #expect(TextProcessing.applyVoiceCommands("I went to the store. Scratch that. I went home.") == "I went home.")
+    }
+
+    @Test func scratchThatAtTheEndRemovesThatPhrase() {
+        #expect(TextProcessing.applyVoiceCommands("Call me tomorrow. Send it now scratch that.") == "Call me tomorrow.")
+    }
+
+    @Test func newLineAndParagraph() {
+        #expect(TextProcessing.applyVoiceCommands("Hello. New line. Thanks for the update.") == "Hello.\nThanks for the update.")
+        #expect(TextProcessing.applyVoiceCommands("First point new paragraph second point") == "First point\n\nSecond point")
+    }
+
+    @Test func keepsTheCommaTheUserSaid() {
+        #expect(TextProcessing.applyVoiceCommands("Dear Anna, new line thanks for the update") == "Dear Anna,\nThanks for the update")
+    }
+
+    @Test func frenchCommands() {
+        #expect(TextProcessing.applyVoiceCommands("Bonjour nouvelle ligne merci pour tout") == "Bonjour\nMerci pour tout")
+        #expect(TextProcessing.applyVoiceCommands("On se voit lundi. Efface ça. On se voit mardi.") == "On se voit mardi.")
+        #expect(TextProcessing.applyVoiceCommands("Premier point. À la ligne. Deuxième point.") == "Premier point.\nDeuxième point.")
+    }
+
+    @Test func wordsInsideOtherWordsAreNotCommands() {
+        #expect(TextProcessing.applyVoiceCommands("The newline character is escaped.") == "The newline character is escaped.")
+    }
+}

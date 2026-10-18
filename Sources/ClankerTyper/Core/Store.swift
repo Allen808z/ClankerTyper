@@ -38,6 +38,13 @@ struct Snippet: Codable, Identifiable, Equatable {
     var expansion: String
 }
 
+/// A saved instruction for highlighted text or command mode, such as "Turn into bullet points".
+struct CustomAction: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var name: String
+    var instruction: String
+}
+
 /// Everything ClankerTyper keeps between launches, in one JSON file under Application Support.
 @MainActor
 final class ClankerTyperStore: ObservableObject {
@@ -46,6 +53,30 @@ final class ClankerTyperStore: ObservableObject {
         var vocabulary: [VocabularyWord] = []
         var replacements: [Replacement] = []
         var snippets: [Snippet] = []
+        var customActions: [CustomAction] = []
+        var scratchpad: String = ""
+
+        init(history: [HistoryItem] = [], vocabulary: [VocabularyWord] = [], replacements: [Replacement] = [],
+             snippets: [Snippet] = [], customActions: [CustomAction] = [], scratchpad: String = "") {
+            self.history = history
+            self.vocabulary = vocabulary
+            self.replacements = replacements
+            self.snippets = snippets
+            self.customActions = customActions
+            self.scratchpad = scratchpad
+        }
+
+        /// Every field is optional on disk, so a file written by an older version, without the
+        /// fields added since, still loads instead of being set aside as unreadable.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            history = try container.decodeIfPresent([HistoryItem].self, forKey: .history) ?? []
+            vocabulary = try container.decodeIfPresent([VocabularyWord].self, forKey: .vocabulary) ?? []
+            replacements = try container.decodeIfPresent([Replacement].self, forKey: .replacements) ?? []
+            snippets = try container.decodeIfPresent([Snippet].self, forKey: .snippets) ?? []
+            customActions = try container.decodeIfPresent([CustomAction].self, forKey: .customActions) ?? []
+            scratchpad = try container.decodeIfPresent(String.self, forKey: .scratchpad) ?? ""
+        }
     }
 
     static let historyLimit = 1000
@@ -54,6 +85,10 @@ final class ClankerTyperStore: ObservableObject {
     @Published private(set) var vocabulary: [VocabularyWord] = []
     @Published private(set) var replacements: [Replacement] = []
     @Published private(set) var snippets: [Snippet] = []
+    @Published private(set) var customActions: [CustomAction] = []
+    @Published var scratchpad: String = "" {
+        didSet { if scratchpad != oldValue { save() } }
+    }
 
     private let file: URL
 
@@ -66,6 +101,8 @@ final class ClankerTyperStore: ObservableObject {
                 vocabulary = contents.vocabulary
                 replacements = contents.replacements
                 snippets = contents.snippets
+                customActions = contents.customActions
+                scratchpad = contents.scratchpad
             } else {
                 // Keep an unreadable file instead of overwriting the user's data with an empty store.
                 let backup = directory.appendingPathComponent("store-unreadable-\(Int(Date().timeIntervalSince1970)).json")
@@ -197,10 +234,36 @@ final class ClankerTyperStore: ObservableObject {
         save()
     }
 
+    // MARK: - Custom actions
+
+    func addCustomAction(name: String, instruction: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let instruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !instruction.isEmpty else { return }
+        customActions.removeAll { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        customActions.append(CustomAction(name: name, instruction: instruction))
+        save()
+    }
+
+    func deleteCustomAction(_ id: CustomAction.ID) {
+        customActions.removeAll { $0.id == id }
+        save()
+    }
+
+    // MARK: - Scratchpad
+
+    /// Adds a dictation to the end of the scratchpad, on its own line.
+    func appendToScratchpad(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        scratchpad = scratchpad.isEmpty ? trimmed : scratchpad + "\n\n" + trimmed
+    }
+
     // MARK: - Persistence
 
     private func save() {
-        let contents = Contents(history: history, vocabulary: vocabulary, replacements: replacements, snippets: snippets)
+        let contents = Contents(history: history, vocabulary: vocabulary, replacements: replacements, snippets: snippets,
+                                customActions: customActions, scratchpad: scratchpad)
         do {
             let data = try JSONEncoder.store.encode(contents)
             try data.write(to: file, options: .atomic)

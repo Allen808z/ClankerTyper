@@ -5,6 +5,10 @@ import AppKit
 /// Dictation (transcribe-only mode): hold Control + Option and speak, or double-tap it for
 /// hands-free and tap again to stop. The words are cleaned up, pasted where you were typing,
 /// kept on the clipboard and saved to History. Corrections you make afterwards are learned.
+/// With no text field to type into, the words go to the Scratchpad.
+///
+/// Command mode: hold Control + Option + Shift and say what to do. Highlighted text is changed
+/// as asked; with nothing highlighted, new text is written where the cursor is.
 ///
 /// Ask mode: the same recording is sent with screenshots to a vision model in Ollama on this Mac,
 /// and the answer is shown. Nothing is ever sent off the Mac.
@@ -43,6 +47,18 @@ final class CompanionController {
     private var lastTapEnded: Date?
     private var ignoreNextRelease = false
     private var focus = FocusSnapshot(app: nil, element: nil)
+    /// True when Shift joined the shortcut during this hold.
+    private var commandMode = false
+
+    /// The last dictation pasted, so Control + Option + Z can take it out again.
+    private struct LastPaste {
+        let target: FocusSnapshot
+        let inserted: String
+        var valueAfter: String?
+        let date: Date
+    }
+    private var lastPaste: LastPaste?
+    private lazy var scratchpad = ScratchpadWindowController(store: store)
 
     func start() {
         let menu = StatusMenu()
@@ -53,6 +69,11 @@ final class CompanionController {
         menu.onPasteLast = { [weak self] in self?.pasteLast() }
         menu.onFixGrammar = { [weak self] in self?.rewriteSelection(.grammar) }
         menu.onImproveWriting = { [weak self] in self?.rewriteSelection(.improve) }
+        menu.onUndoLast = { [weak self] in self?.undoLastDictation() }
+        menu.onOpenScratchpad = { [weak self] in self?.scratchpad.show(activate: true) }
+        menu.onSelectionAction = { [weak self] style in self?.rewriteSelection(style) }
+        menu.customActions = { [weak self] in self?.store.customActions ?? [] }
+        menu.onManageActions = { [weak self] in self?.hub.show(.actions) }
         menu.onToggleCompanion = { [weak self] visible in
             AppSettings.showCompanion = visible
             self?.overlay.setVisible(visible)
@@ -79,6 +100,7 @@ final class CompanionController {
 
         pushToTalk.onPress = { [weak self] in self?.shortcutPressed() }
         pushToTalk.onRelease = { [weak self] in self?.shortcutReleased() }
+        pushToTalk.onShift = { [weak self] in self?.enterCommandMode() }
         pushToTalk.start()
 
         for shortcut in HotKey.Shortcut.allCases {
@@ -87,6 +109,7 @@ final class CompanionController {
                 case .pasteLast: self?.pasteLast()
                 case .fixGrammar: self?.rewriteSelection(.grammar)
                 case .improveWriting: self?.rewriteSelection(.improve)
+                case .undoLast: self?.undoLastDictation()
                 }
             }
             if let hotKey {
@@ -103,6 +126,8 @@ final class CompanionController {
         card.model.onSubmit = { [weak self] text in self?.submit(text) }
         watcher.onCorrections = { [weak self] corrections in self?.learn(corrections) }
         selectionToolbar.onAction = { [weak self] style, target in self?.rewriteSelection(style, target: target) }
+        selectionToolbar.customActions = { [weak self] in self?.store.customActions ?? [] }
+        selectionToolbar.onManageActions = { [weak self] in self?.hub.show(.actions) }
         selectionToolbar.isBusy = { [weak self] in
             guard let self else { return true }
             if case .idle = self.recording { return self.rewriting }
@@ -203,6 +228,7 @@ final class CompanionController {
         }
 
         recording = .holding(started: Date())
+        commandMode = false
         overlay.setRecordingLabel("REC")
         overlay.setListening(true)
         if AppSettings.transcribeOnly {
@@ -218,8 +244,18 @@ final class CompanionController {
         AppLog.write("listening started in \(focus.appName ?? "unknown app")")
     }
 
+    /// Shift joined Control + Option while holding: what is said is an instruction, not dictation.
+    private func enterCommandMode() {
+        guard case .holding = recording, !commandMode else { return }
+        commandMode = true
+        overlay.setRecordingLabel("COMMAND")
+        menu?.setStatus("Command: say what to do")
+        AppLog.write("command mode")
+    }
+
     private func cancelRecording() {
         recording = .idle
+        commandMode = false
         dictation.cancel()
         muter.end()
         overlay.setListening(false)
@@ -238,6 +274,8 @@ final class CompanionController {
         overlay.setListening(false)
         let duration = Date().timeIntervalSince(started)
         let snapshot = focus
+        let isCommand = commandMode
+        commandMode = false
 
         Task { [weak self] in
             guard let self else { return }
@@ -254,7 +292,9 @@ final class CompanionController {
                 }
                 return
             }
-            if AppSettings.transcribeOnly {
+            if isCommand {
+                await self.runCommand(raw, target: snapshot)
+            } else if AppSettings.transcribeOnly {
                 await self.deliverDictation(raw, duration: duration, focus: snapshot)
             } else {
                 self.submit(raw)
@@ -268,7 +308,12 @@ final class CompanionController {
     /// corrections.
     private func deliverDictation(_ raw: String, duration: TimeInterval, focus: FocusSnapshot) async {
         let languages = AppSettings.dictationLanguages
-        var text = raw
+        // "scratch that", "new line" and "new paragraph" act on the text before anything else.
+        var text = TextProcessing.applyVoiceCommands(raw)
+        guard !text.isEmpty else {
+            menu?.setStatus("Scratched: nothing to type")
+            return
+        }
         if AppSettings.removeFillers {
             text = TextProcessing.removeFillers(text, fillers: TextProcessing.fillerWords(for: languages))
         }
@@ -288,17 +333,23 @@ final class CompanionController {
         }
 
         let outcome: String
-        if AppSettings.insertAtCursor {
+        if AppSettings.insertAtCursor, FocusTracker.clearlyNotTyping(focus) {
+            // No text field to type into: keep the words in the Scratchpad.
+            TextInsertion.putOnClipboard(text)
+            saveToScratchpad(text)
+            outcome = "scratchpad"
+        } else if AppSettings.insertAtCursor {
             switch await TextInsertion.deliver(pasted, to: focus) {
             case .pasted:
                 outcome = "pasted"
                 menu?.setStatus("Pasted · also on clipboard")
+                rememberPaste(pasted, in: focus)
                 if AppSettings.learnCorrections, let element = focus.element {
                     watcher.watch(element: element, inserted: pasted.trimmingCharacters(in: .whitespaces))
                 }
             case .notPasted:
-                outcome = "copied"
-                report("Couldn't paste here. It's on your clipboard: press ⌘V.")
+                outcome = "scratchpad"
+                saveToScratchpad(text)
             case .secureField:
                 outcome = "copied"
                 report("That's a password field, so nothing was typed. It's on your clipboard.")
@@ -321,6 +372,117 @@ final class CompanionController {
             words: TextProcessing.wordCount(text),
             outcome: outcome
         ))
+    }
+
+    private func saveToScratchpad(_ text: String) {
+        store.appendToScratchpad(text)
+        scratchpad.show(activate: false)
+        menu?.setStatus("No text field here: saved to Scratchpad · also on clipboard")
+    }
+
+    /// Remembers what was just pasted, and the field's text right after, for undo.
+    private func rememberPaste(_ inserted: String, in target: FocusSnapshot) {
+        lastPaste = LastPaste(target: target, inserted: inserted, valueAfter: nil, date: Date())
+        guard let element = target.element else { return }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard let self, self.lastPaste?.inserted == inserted else { return }
+            self.lastPaste?.valueAfter = FocusTracker.value(element)
+        }
+    }
+
+    /// Control + Option + Z, or the menu: takes the last pasted dictation out again. When the
+    /// field is unchanged since the paste it uses the app's own undo; otherwise it selects that
+    /// text and deletes it, and it leaves the field alone if the text is no longer there.
+    private func undoLastDictation() {
+        if case .holding = recording {
+            cancelRecording()
+            ignoreNextRelease = true
+        }
+        guard let last = lastPaste else {
+            menu?.setStatus("Nothing to undo")
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            await KeyStroke.waitForModifiersReleased()
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == last.target.app?.processIdentifier else {
+                self.report("Go back to \(last.target.appName ?? "the app you dictated into"), then press ⌃⌥Z.")
+                return
+            }
+            FocusTracker.restore(last.target)
+            if let element = last.target.element, let current = FocusTracker.value(element) {
+                if let after = last.valueAfter, current == after {
+                    KeyStroke.post(keyCode: KeyStroke.keyZ, flags: .maskCommand)
+                } else {
+                    let range = (current as NSString).range(of: last.inserted, options: .backwards)
+                    guard range.location != NSNotFound, FocusTracker.select(range, in: element) else {
+                        self.report("That text has changed since, so it was left alone.")
+                        return
+                    }
+                    KeyStroke.post(keyCode: KeyStroke.keyDelete, flags: [])
+                }
+            } else if Date().timeIntervalSince(last.date) < 120 {
+                // The app does not expose its text; its own undo is the best remaining option.
+                KeyStroke.post(keyCode: KeyStroke.keyZ, flags: .maskCommand)
+            } else {
+                self.report("Can't check this field any more, so nothing was undone.")
+                return
+            }
+            self.watcher.cancel()
+            self.lastPaste = nil
+            self.menu?.setStatus("Removed the last dictation")
+            AppLog.write("undid last dictation (\(TextProcessing.wordCount(last.inserted)) words)")
+        }
+    }
+
+    /// Command mode: what was said is an instruction. Highlighted text is changed as asked;
+    /// with nothing highlighted, new text is written where the cursor is.
+    private func runCommand(_ raw: String, target: FocusSnapshot) async {
+        var instruction = raw
+        if AppSettings.removeFillers {
+            instruction = TextProcessing.removeFillers(instruction, fillers: TextProcessing.fillerWords(for: AppSettings.dictationLanguages))
+        }
+        guard !FocusTracker.isSecure(target.element) else {
+            report("That's a password field, so it was left alone.")
+            return
+        }
+        await KeyStroke.waitForModifiersReleased()
+        // Read once: in apps without Accessibility text this sends Cmd+C.
+        let selection = await SelectionReader.read(from: target) ?? ""
+        let selected = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        let style: Rewriter.Style = selected.isEmpty ? .generate(instruction) : .custom(instruction)
+        let input = selected.isEmpty ? instruction : selection
+
+        overlay.showBusy("\(style.label)…")
+        menu?.setStatus("\(style.label)…")
+        rewriting = true
+        defer {
+            overlay.showBusy(nil)
+            rewriting = false
+        }
+        let result: String
+        do {
+            result = try await Rewriter().rewrite(input, style: style, timeout: 60)
+        } catch {
+            AppLog.write("command failed: \(error.localizedDescription)")
+            report(error.localizedDescription)
+            return
+        }
+        if FocusTracker.clearlyNotTyping(target) {
+            TextInsertion.putOnClipboard(result)
+            saveToScratchpad(result)
+            return
+        }
+        switch await TextInsertion.deliver(result, to: target) {
+        case .pasted:
+            menu?.setStatus(selected.isEmpty ? "Written · ⌘Z in the app undoes it" : "Replaced · ⌘Z in the app undoes it")
+        case .notPasted:
+            saveToScratchpad(result)
+        default:
+            report("The result is on your clipboard: press ⌘V.")
+        }
+        AppLog.write("command: \(TextProcessing.wordCount(instruction))-word instruction, \(TextProcessing.wordCount(result)) words out")
     }
 
     /// Makes each dictated phrase a correct, sensible sentence with the local model before it is

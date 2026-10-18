@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum HubPage: String, CaseIterable, Identifiable {
-    case home, history, dictionary, snippets, settings
+    case home, history, dictionary, snippets, actions, settings
 
     var id: Self { self }
 
@@ -12,6 +12,7 @@ enum HubPage: String, CaseIterable, Identifiable {
         case .history: return "History"
         case .dictionary: return "Dictionary"
         case .snippets: return "Snippets"
+        case .actions: return "Actions"
         case .settings: return "Settings"
         }
     }
@@ -22,6 +23,7 @@ enum HubPage: String, CaseIterable, Identifiable {
         case .history: return "clock.arrow.circlepath"
         case .dictionary: return "character.book.closed"
         case .snippets: return "text.badge.plus"
+        case .actions: return "wand.and.stars"
         case .settings: return "gearshape"
         }
     }
@@ -81,6 +83,7 @@ struct HubView: View {
             case .history: HistoryPage(store: store)
             case .dictionary: DictionaryPage(store: store)
             case .snippets: SnippetsPage(store: store)
+            case .actions: ActionsPage(store: store)
             case .settings: SettingsView(permissions: permissions)
             }
         }
@@ -112,9 +115,12 @@ private struct HomePage: View {
                     Text("Shortcuts").font(.headline)
                     ShortcutRow(keys: "Hold ⌃⌥", action: "Dictate while held")
                     ShortcutRow(keys: "Double-tap ⌃⌥", action: "Hands-free: talk without holding, tap again to stop")
+                    ShortcutRow(keys: "Hold ⌃⌥⇧", action: "Command mode: say what to do with highlighted text, or what to write")
+                    ShortcutRow(keys: "⌃⌥Z", action: "Undo the last dictation")
                     ShortcutRow(keys: "⌃⌥V", action: "Paste the last transcript again")
                     ShortcutRow(keys: "⌃⌥G", action: "Fix the grammar of highlighted text")
                     ShortcutRow(keys: "⌃⌥E", action: "Improve the writing of highlighted text")
+                    ShortcutRow(keys: "While talking", action: "Say “new line”, “new paragraph” or “scratch that”")
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -434,5 +440,86 @@ private struct SnippetsPage: View {
             .padding(28)
             .frame(maxWidth: 820, alignment: .leading)
         }
+    }
+}
+
+// MARK: - Actions
+
+private struct ActionsPage: View {
+    @ObservedObject var store: ClankerTyperStore
+    @State private var name = ""
+    @State private var instruction = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Actions").font(.system(size: 22, weight: .bold))
+                    Text("Things ClankerTyper can do to highlighted text, on this Mac. Highlight text and use the toolbar that appears, or the menu bar under More for highlighted text.")
+                        .foregroundStyle(.secondary)
+                }
+
+                GroupBox("Command mode") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Hold ⌃ Control + ⌥ Option + ⇧ Shift and say what you want, then let go.")
+                        Text("With text highlighted, it is changed as you ask: “make this more polite”, “turn this into bullet points”, “translate to French”.")
+                            .foregroundStyle(.secondary)
+                        Text("With nothing highlighted, new text is written where your cursor is: “write a short thank-you note to Sam for the flowers”.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                }
+
+                GroupBox("Built in") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Rewriter.Style.selectionActions, id: \.title) { style in
+                            Text(style.title)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                }
+
+                GroupBox("Your actions") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField("Name, for example Bullet points", text: $name)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Instruction, for example Turn this into a short bullet list", text: $instruction)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit(add)
+                        HStack {
+                            Spacer()
+                            Button("Add action", action: add)
+                                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty
+                                          || instruction.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        if store.customActions.isEmpty {
+                            Text("No actions yet.").foregroundStyle(.secondary)
+                        }
+                        ForEach(store.customActions) { action in
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(action.name).font(.headline)
+                                    Text(action.instruction).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button { store.deleteCustomAction(action.id) } label: { Image(systemName: "trash") }
+                                    .buttonStyle(.borderless)
+                            }
+                        }
+                    }
+                    .padding(8)
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: 820, alignment: .leading)
+        }
+    }
+
+    private func add() {
+        store.addCustomAction(name: name, instruction: instruction)
+        name = ""
+        instruction = ""
     }
 }

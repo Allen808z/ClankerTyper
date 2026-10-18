@@ -1,15 +1,19 @@
 import AppKit
 
-/// Watches the Control + Option modifier pair and reports press and release.
+/// Watches the Control + Option modifier pair and reports press and release, and whether Shift
+/// was part of the chord (Control + Option + Shift is command mode).
 /// The global monitor needs Accessibility permission; without it the shortcut only works
 /// while ClankerTyper itself is frontmost.
 @MainActor
 final class PushToTalk {
     var onPress: (() -> Void)?
     var onRelease: (() -> Void)?
+    /// Called once per hold when Shift is down together with Control + Option.
+    var onShift: (() -> Void)?
 
     private var monitors: [Any] = []
     private(set) var isHeld = false
+    private var shiftReported = false
 
     static func isChord(_ flags: NSEvent.ModifierFlags) -> Bool {
         let relevant = flags.intersection(.deviceIndependentFlagsMask)
@@ -41,8 +45,14 @@ final class PushToTalk {
         let chord = Self.isChord(flags)
         if chord, !isHeld {
             isHeld = true
+            shiftReported = false
             onPress?()
-        } else if !chord, isHeld {
+        }
+        if chord, isHeld, !shiftReported, flags.contains(.shift) {
+            shiftReported = true
+            onShift?()
+        }
+        if !chord, isHeld {
             isHeld = false
             onRelease?()
         }

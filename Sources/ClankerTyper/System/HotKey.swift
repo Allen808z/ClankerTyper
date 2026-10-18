@@ -49,12 +49,14 @@ final class HotKey {
         case pasteLast = 1
         case fixGrammar = 2
         case improveWriting = 3
+        case undoLast = 4
 
         var keyCode: UInt32 {
             switch self {
             case .pasteLast: return UInt32(kVK_ANSI_V)
             case .fixGrammar: return UInt32(kVK_ANSI_G)
             case .improveWriting: return UInt32(kVK_ANSI_E)
+            case .undoLast: return UInt32(kVK_ANSI_Z)
             }
         }
 
@@ -63,6 +65,7 @@ final class HotKey {
             case .pasteLast: return "⌃⌥V"
             case .fixGrammar: return "⌃⌥G"
             case .improveWriting: return "⌃⌥E"
+            case .undoLast: return "⌃⌥Z"
             }
         }
     }
