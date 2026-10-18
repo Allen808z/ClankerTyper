@@ -2,62 +2,8 @@ import Foundation
 import Testing
 @testable import ClankerTyper
 
-@Suite("Anthropic Messages API client")
-struct AnthropicClientTests {
-    @Test func requestHasHeadersAndBody() throws {
-        let message = AnthropicClient.Message(role: "user", content: [
-            .imageJPEG(base64: "AAAA"),
-            .text("hi"),
-        ])
-        let request = try AnthropicClient.makeRequest(
-            apiKey: "test-key", model: "claude-sonnet-5-5", system: "sys", maxTokens: 256, messages: [message]
-        )
-        #expect(request.url == AnthropicClient.endpoint)
-        #expect(request.httpMethod == "POST")
-        #expect(request.value(forHTTPHeaderField: "x-api-key") == "test-key")
-        #expect(request.value(forHTTPHeaderField: "anthropic-version") == "2023-06-01")
-
-        let body = try #require(request.httpBody)
-        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-        #expect(json["model"] as? String == "claude-sonnet-5-5")
-        #expect(json["max_tokens"] as? Int == 256)
-        #expect(json["system"] as? String == "sys")
-
-        let messages = try #require(json["messages"] as? [[String: Any]])
-        let content = try #require(messages.first?["content"] as? [[String: Any]])
-        #expect(content[0]["type"] as? String == "image")
-        let source = try #require(content[0]["source"] as? [String: Any])
-        #expect(source["type"] as? String == "base64")
-        #expect(source["media_type"] as? String == "image/jpeg")
-        #expect(source["data"] as? String == "AAAA")
-        #expect(content[1]["text"] as? String == "hi")
-    }
-
-    @Test func missingKeyFailsBeforeNetwork() {
-        #expect(throws: AnthropicClient.ClientError.missingAPIKey) {
-            try AnthropicClient.makeRequest(apiKey: "", model: "m", system: "s", maxTokens: 1, messages: [])
-        }
-    }
-
-    @Test func parsesConcatenatedTextBlocks() throws {
-        let body = #"{"content":[{"type":"text","text":"Hello "},{"type":"text","text":"there. [POINT:none]"}]}"#
-        let text = try AnthropicClient.parseReply(data: Data(body.utf8), status: 200)
-        #expect(text == "Hello there. [POINT:none]")
-    }
-
-    @Test func surfacesAPIErrorMessage() {
-        let body = #"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#
-        #expect(throws: AnthropicClient.ClientError.http(status: 401, message: "invalid x-api-key")) {
-            try AnthropicClient.parseReply(data: Data(body.utf8), status: 401)
-        }
-    }
-
-    @Test func emptyReplyIsAnError() {
-        #expect(throws: AnthropicClient.ClientError.emptyReply) {
-            try AnthropicClient.parseReply(data: Data(#"{"content":[]}"#.utf8), status: 200)
-        }
-    }
-
+@Suite("Ask mode memory")
+struct AssistantTests {
     @Test @MainActor func assistantKeepsOnlyRecentTextOnlyHistory() {
         let assistant = Assistant(maxExchanges: 2)
         let screen = EncodedScreen(
@@ -84,7 +30,7 @@ struct AnthropicClientTests {
 @Suite("Ollama chat client")
 struct OllamaClientTests {
     @Test func requestConvertsTurnsAndImagesForOllama() throws {
-        let messages: [AnthropicClient.Message] = [
+        let messages: [ChatMessage] = [
             .init(role: "user", content: [.imageJPEG(base64: "AAAA"), .text("what is this")]),
             .init(role: "assistant", content: [.text("a button")]),
         ]
@@ -103,6 +49,17 @@ struct OllamaClientTests {
         #expect(chat[1]["content"] as? String == "what is this")
         #expect(chat[1]["images"] as? [String] == ["AAAA"])
         #expect(chat[2]["images"] == nil)
+    }
+
+    @Test func refusesAnythingButThisMac() {
+        #expect(OllamaClient.isLocal(URL(string: "http://localhost:11434")!))
+        #expect(OllamaClient.isLocal(URL(string: "http://127.0.0.1:11434")!))
+        #expect(OllamaClient.isLocal(URL(string: "http://[::1]:11434")!))
+        #expect(!OllamaClient.isLocal(URL(string: "http://192.168.1.20:11434")!))
+        #expect(!OllamaClient.isLocal(URL(string: "https://ollama.example.com")!))
+        #expect(throws: OllamaClient.ClientError.notLocal("ollama.example.com")) {
+            try OllamaClient.makeRequest(host: URL(string: "https://ollama.example.com")!, model: "m", system: "s", messages: [])
+        }
     }
 
     @Test func emptyModelNameIsRejected() {

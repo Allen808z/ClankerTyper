@@ -83,8 +83,6 @@ struct PermissionRow: View {
 
 struct SettingsView: View {
     @ObservedObject var permissions: PermissionState
-    @State private var keyDraft = ""
-    @State private var keyStatus = ""
     @AppStorage(AppSettings.Key.transcribeOnly) private var transcribeOnly = true
     @AppStorage(AppSettings.Key.insertAtCursor) private var insertAtCursor = true
     @AppStorage(AppSettings.Key.dictationLanguages) private var languagesRaw = ""
@@ -93,10 +91,9 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.smartSpacing) private var smartSpacing = true
     @AppStorage(AppSettings.Key.learnCorrections) private var learnCorrections = true
     @AppStorage(AppSettings.Key.aiCleanup) private var aiCleanup = true
-    @AppStorage(AppSettings.Key.provider) private var provider = AppSettings.Provider.anthropic.rawValue
+    @AppStorage(AppSettings.Key.writingEngine) private var writingEngine = AppSettings.writingEngine.rawValue
     @AppStorage(AppSettings.Key.ollamaModel) private var ollamaModel = "qwen2.5vl:7b"
     @AppStorage(AppSettings.Key.ollamaHost) private var ollamaHost = OllamaClient.defaultHost.absoluteString
-    @AppStorage(AppSettings.Key.model) private var model = AppSettings.models[0].id
     @AppStorage(AppSettings.Key.speakReplies) private var speakReplies = true
     @AppStorage(AppSettings.Key.showCompanion) private var showCompanion = true
     @AppStorage(AppSettings.Key.showInDock) private var showInDock = true
@@ -138,7 +135,7 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle("Correct grammar so each phrase makes sense", isOn: $aiCleanup)
-                Text("Uses your local model through Ollama before pasting. If the model is unavailable, slow, or changes your meaning, your words are pasted as heard.")
+                Text("Runs on this Mac before pasting. If the model is unavailable, slow, or changes your meaning, your words are pasted as heard.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("Everything you dictate also stays on the clipboard.")
@@ -154,10 +151,24 @@ struct SettingsView: View {
                 Text("Highlight text in any app, then press ⌃⌥G to fix its grammar or ⌃⌥E to improve the writing. The selection is replaced; ⌘Z in that app undoes it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("Local model (Ollama)", text: $ollamaModel)
-                Text("Used for grammar correction and writing tools. Nothing leaves your Mac.")
+                Picker("Model", selection: $writingEngine) {
+                    ForEach(AppSettings.WritingEngine.allCases) { engine in
+                        Text(engine.label).tag(engine.rawValue)
+                    }
+                }
+                if writingEngine == AppSettings.WritingEngine.ollama.rawValue {
+                    TextField("Ollama model", text: $ollamaModel)
+                }
+                Text(engineNote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Privacy") {
+                Label("Speech is recognized on this Mac only. A language that isn't installed on-device is skipped, never sent away.", systemImage: "waveform")
+                Label("Grammar correction and writing tools use a model on this Mac: Apple's built-in model or Ollama at localhost.", systemImage: "cpu")
+                Label("History, your dictionary and snippets are stored only in ~/Library/Application Support/ClankerTyper.", systemImage: "internaldrive")
+                Label("No accounts, no analytics, no cloud services.", systemImage: "lock")
             }
 
             Section("Mode") {
@@ -170,56 +181,13 @@ struct SettingsView: View {
             }
 
             if !transcribeOnly {
-            Section("Model") {
-                Picker("Answers from", selection: $provider) {
-                    ForEach(AppSettings.Provider.allCases) { option in
-                        Text(option.label).tag(option.rawValue)
-                    }
-                }
-                if AppSettings.Provider(rawValue: provider) == .ollama {
-                    TextField("Model name", text: $ollamaModel)
-                    TextField("Ollama address", text: $ollamaHost)
-                    Text("Runs on this Mac through Ollama. Nothing is sent to the cloud. Pull the model first with `ollama pull \(ollamaModel)`.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    SecureField("API key (sk-ant-…)", text: $keyDraft)
-                    HStack {
-                        Button("Save key") {
-                            let ok = APIKeyStore.save(keyDraft)
-                            keyDraft = ""
-                            keyStatus = ok ? "Saved in your Keychain." : "Could not save the key."
-                        }
-                        .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-                        Button("Remove") {
-                            APIKeyStore.delete()
-                            keyStatus = "Key removed."
-                        }
-                        .disabled(!APIKeyStore.hasStoredKey)
-                        Spacer()
-                        Text(keyStatus.isEmpty ? keyStatusDefault : keyStatus)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Picker("Claude model", selection: $model) {
-                        ForEach(AppSettings.models, id: \.id) { option in
-                            Text(option.label).tag(option.id)
-                        }
-                    }
-                }
-            }
-            }
-
-            Section("App") {
-                Toggle("Show ClankerTyper in the Dock", isOn: $showInDock)
-                    .onChange(of: showInDock) { _, visible in
-                        NSApp.setActivationPolicy(visible ? .regular : .accessory)
-                        // Switching policy can drop this window behind others; keep it in front.
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
-                Text("It is always in the menu bar at the top right.")
+            Section("Ask mode model") {
+                TextField("Ollama vision model", text: $ollamaModel)
+                TextField("Ollama address", text: $ollamaHost)
+                Text("Ask mode sends your question and screenshots to a vision model in Ollama on this Mac. Only addresses on this Mac are accepted. Pull the model first with `ollama pull \(ollamaModel)`.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
             }
 
             Section("Companion") {
@@ -252,19 +220,21 @@ struct SettingsView: View {
 
     /// Says whether speech in a language stays on this Mac.
     private func privacyNote(for id: String) -> String {
-        guard let recognizer = SFSpeechRecognizer(locale: AppSettings.locale(for: id)) else {
+        guard SFSpeechRecognizer(locale: AppSettings.locale(for: id)) != nil else {
             return "This Mac can't recognize this language."
         }
-        if recognizer.supportsOnDeviceRecognition {
+        if Dictation.isOnDevice(id) {
             return "Recognized on this Mac. Audio is not sent anywhere."
         }
-        return "Not on-device yet: audio goes to Apple's speech service. Add it under System Settings → Keyboard → Dictation for the on-device model."
+        return "Not installed on this Mac yet, so it is skipped. Add it under System Settings → Keyboard → Dictation."
     }
 
-    private var keyStatusDefault: String {
-        if ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]?.isEmpty == false {
-            return "Using ANTHROPIC_API_KEY from the environment."
+    private var engineNote: String {
+        if writingEngine == AppSettings.WritingEngine.apple.rawValue {
+            return AppleTextModel.isAvailable
+                ? "Built into macOS. Nothing to install, and nothing leaves your Mac."
+                : "Not available on this Mac. Turn on Apple Intelligence in System Settings, or choose Ollama."
         }
-        return APIKeyStore.hasStoredKey ? "A key is saved." : "No key yet."
+        return "Uses Ollama on this Mac (localhost only). Install Ollama and run `ollama pull \(ollamaModel)` first."
     }
 }

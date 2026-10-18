@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
-import Security
 
-/// Non-secret preferences, kept in UserDefaults.
+/// Preferences, kept in UserDefaults on this Mac.
 enum AppSettings {
     static let defaults = UserDefaults.standard
 
@@ -15,10 +14,9 @@ enum AppSettings {
         static let learnCorrections = "learnCorrections"
         static let aiCleanup = "aiCleanup"
         static let insertAtCursor = "insertAtCursor"
-        static let provider = "provider"
+        static let writingEngine = "writingEngine"
         static let ollamaModel = "ollamaModel"
         static let ollamaHost = "ollamaHost"
-        static let model = "model"
         static let speakReplies = "speakReplies"
         static let showCompanion = "showCompanion"
         static let showInDock = "showInDock"
@@ -26,23 +24,17 @@ enum AppSettings {
         static let onboardingDone = "onboardingDone"
     }
 
-    /// Models offered in Settings. IDs follow the Claude 5 family naming in this environment.
-    static let models: [(id: String, label: String)] = [
-        ("claude-sonnet-5-5", "Claude Sonnet 5.5 (balanced)"),
-        ("claude-opus-5-5", "Claude Opus 5.5 (deepest)"),
-        ("claude-haiku-5-5", "Claude Haiku 5.5 (fastest)"),
-    ]
-
-    /// Which backend answers: the Anthropic API (needs a key) or a local Ollama server.
-    enum Provider: String, CaseIterable, Identifiable {
-        case anthropic
+    /// The on-device model that corrects grammar and powers the writing tools. Both run on this
+    /// Mac; Apple's is built into macOS 26 and needs nothing installed.
+    enum WritingEngine: String, CaseIterable, Identifiable {
+        case apple
         case ollama
 
         var id: Self { self }
         var label: String {
             switch self {
-            case .anthropic: return "Anthropic (cloud, API key)"
-            case .ollama: return "Local model (Ollama)"
+            case .apple: return "Apple's built-in model"
+            case .ollama: return "Ollama"
             }
         }
     }
@@ -112,7 +104,7 @@ enum AppSettings {
         set { defaults.set(newValue, forKey: Key.learnCorrections) }
     }
 
-    /// Grammar correction of dictation through the local Ollama model, so each phrase reads as a
+    /// Grammar correction of dictation with the on-device model, so each phrase reads as a
     /// sensible sentence. The original is kept whenever the model is unavailable or goes off track.
     static var aiCleanup: Bool {
         get { defaults.object(forKey: Key.aiCleanup) as? Bool ?? true }
@@ -125,9 +117,15 @@ enum AppSettings {
         set { defaults.set(newValue, forKey: Key.insertAtCursor) }
     }
 
-    static var provider: Provider {
-        get { Provider(rawValue: defaults.string(forKey: Key.provider) ?? "") ?? .anthropic }
-        set { defaults.set(newValue.rawValue, forKey: Key.provider) }
+    /// Apple's model when this Mac has it, otherwise Ollama.
+    static var writingEngine: WritingEngine {
+        get {
+            if let stored = defaults.string(forKey: Key.writingEngine), let engine = WritingEngine(rawValue: stored) {
+                return engine
+            }
+            return AppleTextModel.isAvailable ? .apple : .ollama
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.writingEngine) }
     }
 
     static var ollamaModel: String {
@@ -141,11 +139,6 @@ enum AppSettings {
     static var ollamaHost: String {
         get { defaults.string(forKey: Key.ollamaHost) ?? OllamaClient.defaultHost.absoluteString }
         set { defaults.set(newValue, forKey: Key.ollamaHost) }
-    }
-
-    static var model: String {
-        get { defaults.string(forKey: Key.model) ?? models[0].id }
-        set { defaults.set(newValue, forKey: Key.model) }
     }
 
     static var speakReplies: Bool {
@@ -177,61 +170,5 @@ enum AppSettings {
     static var onboardingDone: Bool {
         get { defaults.bool(forKey: Key.onboardingDone) }
         set { defaults.set(newValue, forKey: Key.onboardingDone) }
-    }
-}
-
-/// The API key lives in the login Keychain, never in UserDefaults.
-/// `ANTHROPIC_API_KEY` in the environment is accepted as a development fallback.
-enum APIKeyStore {
-    private static let service = "dev.local.clanker"
-    private static let account = "anthropic-api-key"
-
-    static var apiKey: String? {
-        if let env = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"], !env.isEmpty {
-            return env
-        }
-        return keychainRead()
-    }
-
-    static var hasStoredKey: Bool { keychainRead() != nil }
-
-    @discardableResult
-    static func save(_ key: String) -> Bool {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return delete() }
-        let data = Data(trimmed.utf8)
-        let query = baseQuery()
-        let update: [String: Any] = [kSecValueData as String: data]
-        let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
-        if status == errSecItemNotFound {
-            var add = query
-            add[kSecValueData as String] = data
-            return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
-        }
-        return status == errSecSuccess
-    }
-
-    @discardableResult
-    static func delete() -> Bool {
-        let status = SecItemDelete(baseQuery() as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
-    }
-
-    private static func baseQuery() -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-    }
-
-    private static func keychainRead() -> String? {
-        var query = baseQuery()
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
     }
 }

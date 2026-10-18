@@ -90,11 +90,13 @@ final class RequestBox: @unchecked Sendable {
 /// Streams microphone audio into Apple's speech recognizer while the user is dictating.
 /// Each phrase is finalized at a pause, so its full text is kept, and recognition then carries
 /// on. With several languages, each phrase is recognized in all of them and the most confident
-/// result wins. Uses on-device recognition when the system offers it.
+/// result wins. Recognition is always on-device: a language whose on-device model is not installed
+/// is skipped, so the voice is never sent to Apple's speech servers.
 @MainActor
 final class Dictation {
     enum DictationError: LocalizedError {
         case recognizerUnavailable
+        case notOnDevice(languages: [String])
         case noMicrophone
         case audioEngine(String)
 
@@ -102,6 +104,9 @@ final class Dictation {
             switch self {
             case .recognizerUnavailable:
                 return "Speech recognition is not available for your language right now."
+            case .notOnDevice(let languages):
+                let names = languages.map { Dictation.displayName($0) }.joined(separator: " and ")
+                return "\(names) isn't installed for on-device recognition, and ClankerTyper never sends your voice off this Mac. Add it in System Settings → Keyboard → Dictation, then try again."
             case .noMicrophone:
                 return "No microphone found. Plug one in or pick one in System Settings → Sound."
             case .audioEngine(let message):
@@ -112,6 +117,18 @@ final class Dictation {
 
     /// Called with the running transcript as it changes.
     var onPartial: ((String) -> Void)?
+
+    /// Selected languages left out of the current recording because they are not on-device.
+    private(set) var skippedLanguages: [String] = []
+
+    /// True when this Mac can recognize the language without sending audio anywhere.
+    static func isOnDevice(_ id: String) -> Bool {
+        SFSpeechRecognizer(locale: AppSettings.locale(for: id))?.supportsOnDeviceRecognition ?? false
+    }
+
+    nonisolated static func displayName(_ id: String) -> String {
+        AppSettings.languageOptions.first { $0.id == id }?.label ?? id
+    }
 
     /// A pause this long ends the current phrase.
     static let pauseLength: TimeInterval = 0.7
@@ -169,15 +186,23 @@ final class Dictation {
     func start(languages: [String], hints: [String]) throws {
         guard AVCaptureDevice.default(for: .audio) != nil else { throw DictationError.noMicrophone }
 
+        skippedLanguages = []
         lanes = languages.compactMap { id in
             guard let recognizer = SFSpeechRecognizer(locale: AppSettings.locale(for: id)), recognizer.isAvailable else {
                 return nil
             }
+            guard recognizer.supportsOnDeviceRecognition else {
+                skippedLanguages.append(id)
+                return nil
+            }
             return Lane(language: id, recognizer: recognizer)
         }
-        guard !lanes.isEmpty else { throw DictationError.recognizerUnavailable }
+        guard !lanes.isEmpty else {
+            if !skippedLanguages.isEmpty { throw DictationError.notOnDevice(languages: skippedLanguages) }
+            throw DictationError.recognizerUnavailable
+        }
         for lane in lanes {
-            AppLog.write("recognizing \(lane.language), on-device=\(lane.recognizer.supportsOnDeviceRecognition)")
+            AppLog.write("recognizing \(lane.language) on this Mac")
         }
 
         self.hints = hints
@@ -274,9 +299,8 @@ final class Dictation {
             // Adds commas, full stops and question marks inside a phrase.
             request.addsPunctuation = true
             request.contextualStrings = hints
-            if lanes[index].recognizer.supportsOnDeviceRecognition {
-                request.requiresOnDeviceRecognition = true
-            }
+            // Never fall back to Apple's servers.
+            request.requiresOnDeviceRecognition = true
             lanes[index].text = ""
             lanes[index].confidence = 0
             lanes[index].done = false

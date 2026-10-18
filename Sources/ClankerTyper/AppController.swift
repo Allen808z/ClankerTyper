@@ -6,7 +6,8 @@ import AppKit
 /// hands-free and tap again to stop. The words are cleaned up, pasted where you were typing,
 /// kept on the clipboard and saved to History. Corrections you make afterwards are learned.
 ///
-/// Ask mode: the same recording is sent with screenshots to a model, and the answer is shown.
+/// Ask mode: the same recording is sent with screenshots to a vision model in Ollama on this Mac,
+/// and the answer is shown. Nothing is ever sent off the Mac.
 @MainActor
 final class CompanionController {
     private enum Recording {
@@ -205,7 +206,10 @@ final class CompanionController {
         overlay.setRecordingLabel("REC")
         overlay.setListening(true)
         if AppSettings.transcribeOnly {
-            menu?.setStatus("Listening…")
+            let skipped = dictation.skippedLanguages.map(Dictation.displayName)
+            menu?.setStatus(skipped.isEmpty
+                ? "Listening…"
+                : "Listening… (\(skipped.joined(separator: ", ")) skipped: not installed on this Mac)")
         } else {
             card.model.userText = ""
             card.model.status = .listening(partial: "")
@@ -457,7 +461,8 @@ final class CompanionController {
             let reply = try await assistant.reply(
                 to: request,
                 screens: captured.map(\.encoded),
-                backend: try resolveBackend()
+                host: URL(string: AppSettings.ollamaHost) ?? OllamaClient.defaultHost,
+                model: AppSettings.ollamaModel
             )
             guard !Task.isCancelled else { return }
 
@@ -473,19 +478,6 @@ final class CompanionController {
             // A superseded turn is cancelled on purpose; its error must not overwrite the new state.
             guard !Task.isCancelled else { return }
             card.model.status = .error(error.localizedDescription)
-        }
-    }
-
-    private func resolveBackend() throws -> ModelBackend {
-        switch AppSettings.provider {
-        case .anthropic:
-            guard let apiKey = APIKeyStore.apiKey else {
-                throw AnthropicClient.ClientError.missingAPIKey
-            }
-            return .anthropic(apiKey: apiKey, model: AppSettings.model)
-        case .ollama:
-            let host = URL(string: AppSettings.ollamaHost) ?? OllamaClient.defaultHost
-            return .ollama(host: host, model: AppSettings.ollamaModel)
         }
     }
 

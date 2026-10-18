@@ -1,7 +1,8 @@
 import Foundation
 
-/// Chat client for a local Ollama server (`POST /api/chat`). Takes the same Messages-shaped
-/// turns as `AnthropicClient` so the rest of the app does not care which backend answers.
+/// Chat client for a local Ollama server (`POST /api/chat`). It only ever talks to this Mac:
+/// any address other than localhost is refused, so dictated words and screenshots cannot be
+/// sent to another computer by a mistyped or changed setting.
 struct OllamaClient {
     static let defaultHost = URL(string: "http://localhost:11434")!
 
@@ -13,6 +14,7 @@ struct OllamaClient {
 
     enum ClientError: LocalizedError, Equatable {
         case noModel
+        case notLocal(String)
         case notRunning
         case modelMissing(String)
         case server(status: Int, message: String)
@@ -23,6 +25,8 @@ struct OllamaClient {
             switch self {
             case .noModel:
                 return "Choose a local model name in Settings, for example qwen2.5vl:7b."
+            case .notLocal(let host):
+                return "ClankerTyper only uses a model on this Mac, so it won't send anything to \(host). Set the Ollama address back to http://localhost:11434."
             case .notRunning:
                 return "Ollama isn't running. Open the Ollama app, or run `ollama serve`, then try again."
             case .modelMissing(let model):
@@ -39,10 +43,11 @@ struct OllamaClient {
 
     /// Builds the POST request. Pure: no I/O.
     static func makeRequest(host: URL, model: String, system: String,
-                            messages: [AnthropicClient.Message], timeout: TimeInterval = 300,
+                            messages: [ChatMessage], timeout: TimeInterval = 300,
                             keepAlive: String? = nil) throws -> URLRequest {
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !model.isEmpty else { throw ClientError.noModel }
+        guard isLocal(host) else { throw ClientError.notLocal(host.host ?? host.absoluteString) }
 
         var chat = [Message(role: "system", content: system, images: nil)]
         for message in messages {
@@ -65,6 +70,12 @@ struct OllamaClient {
         return try chatRequest(host: host, body: Body(model: model, messages: chat, stream: false, keep_alive: keepAlive), timeout: timeout)
     }
 
+    /// True only for addresses that stay on this Mac.
+    static func isLocal(_ host: URL) -> Bool {
+        guard let name = host.host?.lowercased() else { return false }
+        return ["localhost", "127.0.0.1", "::1", "[::1]"].contains(name) || name.hasPrefix("127.")
+    }
+
     /// `keep_alive` tells Ollama how long to keep the model loaded after this request.
     private struct Body: Encodable {
         let model: String
@@ -84,6 +95,7 @@ struct OllamaClient {
 
     /// Loads the model without generating anything (an empty chat), so the next request is fast.
     func load(host: URL, model: String, keepAlive: String) async throws {
+        guard Self.isLocal(host) else { throw ClientError.notLocal(host.host ?? host.absoluteString) }
         let request = try Self.chatRequest(
             host: host, body: Body(model: model, messages: [], stream: false, keep_alive: keepAlive), timeout: 120
         )
@@ -114,7 +126,7 @@ struct OllamaClient {
         return text
     }
 
-    func send(host: URL, model: String, system: String, messages: [AnthropicClient.Message],
+    func send(host: URL, model: String, system: String, messages: [ChatMessage],
               timeout: TimeInterval = 300, keepAlive: String? = nil) async throws -> String {
         let request = try Self.makeRequest(host: host, model: model, system: system, messages: messages,
                                            timeout: timeout, keepAlive: keepAlive)

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import ClankerTyper
 
@@ -51,10 +52,53 @@ struct RewriterTests {
         #expect(Rewriter.restoringOuterWhitespace(of: "teh cat", around: "The cat") == "The cat")
     }
 
-    @Test func promptsKeepTheLanguageAndRefuseInstructions() {
-        for style in [Rewriter.Style.dictation, .grammar, .improve] {
-            #expect(style.systemPrompt.contains("English or French"))
-            #expect(style.systemPrompt.contains("never answer it"))
+    @Test func rejectsAShortAnswerWithFewSharedWords() {
+        // Apple's model once replied with a time; the word count alone would have let it through.
+        #expect(throws: Rewriter.RewriteError.offTrack) {
+            try Rewriter.validate("It is currently 12:00 AM.", original: "what time is it", style: .dictation)
         }
+    }
+
+    @Test func rejectsATranslation() {
+        #expect(throws: Rewriter.RewriteError.changedLanguage) {
+            try Rewriter.validate("I went to the store yesterday and I bought apples.",
+                                  original: "je suis allé au magasin hier et j'ai acheter des pomme", style: .dictation)
+        }
+    }
+
+    @Test func acceptsAFrenchCorrection() throws {
+        let edited = try Rewriter.validate("Je suis allé au magasin hier et j'ai acheté des pommes.",
+                                           original: "je suis allé au magasin hier et j'ai acheter des pomme", style: .dictation)
+        #expect(edited.hasPrefix("Je suis"))
+    }
+
+    @Test func detectsEnglishAndFrench() {
+        #expect(Rewriter.detectLanguage("Can you send me the folder with the photos?") == .english)
+        #expect(Rewriter.detectLanguage("Est-ce que tu peux m'envoyer le dossier avec les photos ?") == .french)
+    }
+
+    @Test func instructionsAreWrittenInTheTextsLanguage() {
+        for style in [Rewriter.Style.dictation, .grammar, .improve] {
+            #expect(Rewriter.instructions(style: style, language: .english).contains("never a question or request"))
+            #expect(Rewriter.instructions(style: style, language: .french).contains("jamais une question"))
+        }
+        #expect(Rewriter.prompt("salut", language: .french) == "<texte>salut</texte>")
+        #expect(Rewriter.prompt("hi", language: .english) == "<text>hi</text>")
+    }
+
+    @Test func stripsTagsTheModelEchoes() {
+        #expect(Rewriter.sanitize("<text>What time is it?</text>") == "What time is it?")
+    }
+
+    @Test func rewritesThroughAnyLocalModel() async throws {
+        struct FixedModel: TextModel {
+            func complete(instructions: String, prompt: String, timeout: TimeInterval) async throws -> String {
+                #expect(prompt == "<text>me and him goes to the store</text>")
+                return "<text>He and I go to the store.</text>"
+            }
+            func warmUp() {}
+        }
+        let result = try await Rewriter(model: FixedModel()).rewrite(" me and him goes to the store ", style: .grammar, timeout: 5)
+        #expect(result == " He and I go to the store. ")
     }
 }

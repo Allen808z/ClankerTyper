@@ -36,7 +36,7 @@ Allow Microphone, Speech Recognition and Accessibility when asked.
   muted while you dictate. Each can be switched off in Settings.
 - When you correct a pasted word that isn't everyday vocabulary (a name, a brand), ClankerTyper
   learns it. Ordinary words and accidental one-letter deletions are not learned.
-- Before pasting, a local Ollama model corrects grammar so each phrase makes sense. If the model
+- Before pasting, an on-device model corrects grammar so each phrase makes sense. If the model
   is unavailable, slow, or changes the meaning, your words are pasted as heard.
 - Highlight text anywhere and press ⌃⌥G or ⌃⌥E: the selection is replaced (⌘Z undoes it).
   Or just highlight editable text, however you select it: Fix grammar and Improve writing buttons
@@ -49,8 +49,26 @@ History, Dictionary (your words, replacements and what was learned), Snippets an
 Data is stored in `~/Library/Application Support/ClankerTyper/store.json`; logs are in
 `~/Library/Logs/ClankerTyper/`.
 
-An older ask mode (screenshots sent to Claude or Ollama, answers in a card) is still available
-by turning off "Transcribe only" in Settings.
+An older ask mode (your question and screenshots sent to a vision model in Ollama on this Mac,
+answers in a card) is still available by turning off "Transcribe only" in Settings.
+
+## Privacy
+
+Everything stays on the Mac:
+
+- Speech is recognized on-device only. A language whose on-device model isn't installed is
+  skipped rather than sent to Apple's servers (add it under System Settings → Keyboard → Dictation).
+- Grammar correction and the writing tools use Apple's built-in on-device model (macOS 26 with
+  Apple Intelligence), or Ollama on this Mac. Any Ollama address other than localhost is refused.
+- History, dictionary and snippets live in `~/Library/Application Support/ClankerTyper/`.
+- No accounts, analytics or cloud services. Logs record counts, not what you said.
+
+## Requirements
+
+- macOS 14 or later for dictation.
+- For grammar correction and writing tools: macOS 26 with Apple Intelligence turned on (nothing to
+  install), or [Ollama](https://ollama.com) with a model such as `qwen2.5vl:7b` (choose it in
+  Settings → Writing tools). Without either, dictation still works and is pasted as heard.
 
 ## Tests
 
