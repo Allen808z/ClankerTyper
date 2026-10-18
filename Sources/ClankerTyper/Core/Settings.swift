@@ -111,10 +111,10 @@ enum AppSettings {
         set { defaults.set(newValue, forKey: Key.learnCorrections) }
     }
 
-    /// Optional grammar cleanup through the local Ollama model. Off by default: it is slower and
-    /// a model can change wording.
+    /// Grammar correction of dictation through the local Ollama model, so each phrase reads as a
+    /// sensible sentence. The original is kept whenever the model is unavailable or goes off track.
     static var aiCleanup: Bool {
-        get { defaults.object(forKey: Key.aiCleanup) as? Bool ?? false }
+        get { defaults.object(forKey: Key.aiCleanup) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.aiCleanup) }
     }
 
@@ -130,7 +130,10 @@ enum AppSettings {
     }
 
     static var ollamaModel: String {
-        get { defaults.string(forKey: Key.ollamaModel) ?? "qwen2.5vl:7b" }
+        get {
+            let stored = defaults.string(forKey: Key.ollamaModel)?.trimmingCharacters(in: .whitespaces) ?? ""
+            return stored.isEmpty ? "qwen2.5vl:7b" : stored
+        }
         set { defaults.set(newValue, forKey: Key.ollamaModel) }
     }
 

@@ -62,6 +62,11 @@ enum FocusTracker {
         string(element, kAXValueAttribute)
     }
 
+    /// The highlighted text in the element, when the app exposes it.
+    static func selectedText(_ element: AXUIElement) -> String? {
+        string(element, kAXSelectedTextAttribute)
+    }
+
     /// Up to `limit` characters before the cursor, or nil when the app does not expose them.
     static func textBeforeCursor(_ element: AXUIElement?, limit: Int = 80) -> String? {
         guard let element, let full = value(element) else { return nil }

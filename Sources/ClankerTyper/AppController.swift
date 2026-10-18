@@ -33,7 +33,7 @@ final class CompanionController {
     private lazy var hub = HubWindowController(store: store, permissions: permissions)
     private lazy var onboardingWindow = OnboardingWindowController(permissions: permissions)
     private var menu: StatusMenu?
-    private var pasteLastKey: HotKey?
+    private var hotKeys: [HotKey] = []
     private var turnTask: Task<Void, Never>?
 
     private var recording: Recording = .idle
@@ -48,6 +48,8 @@ final class CompanionController {
         menu.onSettings = { [weak self] in self?.hub.show(.settings) }
         menu.onPermissions = { [weak self] in self?.onboardingWindow.show() }
         menu.onPasteLast = { [weak self] in self?.pasteLast() }
+        menu.onFixGrammar = { [weak self] in self?.rewriteSelection(.grammar) }
+        menu.onImproveWriting = { [weak self] in self?.rewriteSelection(.improve) }
         menu.onToggleCompanion = { [weak self] visible in
             AppSettings.showCompanion = visible
             self?.overlay.setVisible(visible)
@@ -76,11 +78,19 @@ final class CompanionController {
         pushToTalk.onRelease = { [weak self] in self?.shortcutReleased() }
         pushToTalk.start()
 
-        pasteLastKey = HotKey(keyCode: HotKey.pasteLastKeyCode, modifiers: HotKey.controlOption) { [weak self] in
-            self?.pasteLast()
-        }
-        if pasteLastKey == nil {
-            AppLog.write("could not register Control+Option+V for paste last transcript")
+        for shortcut in HotKey.Shortcut.allCases {
+            let hotKey = HotKey(id: shortcut.rawValue, keyCode: shortcut.keyCode, modifiers: HotKey.controlOption) { [weak self] in
+                switch shortcut {
+                case .pasteLast: self?.pasteLast()
+                case .fixGrammar: self?.rewriteSelection(.grammar)
+                case .improveWriting: self?.rewriteSelection(.improve)
+                }
+            }
+            if let hotKey {
+                hotKeys.append(hotKey)
+            } else {
+                AppLog.write("could not register \(shortcut.label); another app may be using it")
+            }
         }
 
         dictation.onPartial = { [weak self] text in
@@ -171,6 +181,8 @@ final class CompanionController {
         overlay.cancelPointing()
         focus = FocusTracker.capture()
         if AppSettings.muteAudio { muter.begin() }
+        // Load the local model now, so grammar correction is quick when the user stops talking.
+        if AppSettings.aiCleanup { Rewriter().warmUp() }
 
         do {
             try dictation.start(languages: AppSettings.dictationLanguages, hints: store.recognitionHints)
@@ -249,7 +261,7 @@ final class CompanionController {
             text = TextProcessing.removeFillers(text, fillers: TextProcessing.fillerWords(for: languages))
         }
         if AppSettings.aiCleanup {
-            text = await polish(text)
+            text = await correctGrammar(text)
         }
         text = TextProcessing.applySnippets(text, store.snippets.map { ($0.trigger, $0.expansion) })
         text = TextProcessing.applyReplacements(text, store.replacements.map { ($0.from, $0.to) })
@@ -299,30 +311,61 @@ final class CompanionController {
         ))
     }
 
-    /// Optional cleanup through the local Ollama model. The original is kept when the model is
-    /// unavailable, slow, or returns something that is clearly not a cleanup of the same words.
-    private func polish(_ text: String) async -> String {
-        let host = URL(string: AppSettings.ollamaHost) ?? OllamaClient.defaultHost
-        let system = """
-        You clean up dictated text. Fix punctuation, capitalization and obvious grammar slips, and \
-        remove filler words and false starts. Keep the speaker's language, words and meaning. Do not \
-        add anything, answer questions, translate or summarize. Reply with the cleaned text only.
-        """
+    /// Makes each dictated phrase a correct, sensible sentence with the local model before it is
+    /// pasted. The original is kept when the model is unavailable, slow, or goes off track.
+    private func correctGrammar(_ text: String) async -> String {
         do {
-            let cleaned = try await OllamaClient().send(
-                host: host, model: AppSettings.ollamaModel, system: system,
-                messages: [.init(role: "user", content: [.text(text)])], timeout: 20
-            )
-            let before = TextProcessing.wordCount(text)
-            let after = TextProcessing.wordCount(cleaned)
-            guard after > 0, Double(after) >= Double(before) * 0.5, Double(after) <= Double(before) * 1.5 + 2 else {
-                AppLog.write("AI cleanup ignored: \(before) words became \(after)")
-                return text
-            }
-            return cleaned
+            return try await Rewriter().rewrite(text, style: .dictation, timeout: 20)
         } catch {
-            AppLog.write("AI cleanup skipped: \(error.localizedDescription)")
+            AppLog.write("grammar correction skipped: \(error.localizedDescription)")
             return text
+        }
+    }
+
+    /// Control + Option + G or E, or the menu: fixes or improves the highlighted text in the app
+    /// in front, and replaces it.
+    private func rewriteSelection(_ style: Rewriter.Style) {
+        // Holding Control + Option to press the letter starts a recording; it was never meant as one.
+        if case .holding = recording {
+            cancelRecording()
+            ignoreNextRelease = true
+        }
+        let target = FocusTracker.capture()
+        guard !FocusTracker.isSecure(target.element) else {
+            report("That's a password field, so it was left alone.")
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            await KeyStroke.waitForModifiersReleased()
+            guard let selected = await SelectionReader.read(from: target),
+                  !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                self.report("Highlight some text first, then press ⌃⌥G to fix grammar or ⌃⌥E to improve it.")
+                return
+            }
+            self.overlay.showBusy("\(style.label)…")
+            self.menu?.setStatus("\(style.label)…")
+            defer { self.overlay.showBusy(nil) }
+
+            let result: String
+            do {
+                result = try await Rewriter().rewrite(selected, style: style, timeout: 60)
+            } catch {
+                AppLog.write("\(style.label) failed: \(error.localizedDescription)")
+                self.report(error.localizedDescription)
+                return
+            }
+            guard result != selected else {
+                self.menu?.setStatus("Already correct, nothing changed")
+                return
+            }
+            switch await TextInsertion.deliver(result, to: target) {
+            case .pasted:
+                self.menu?.setStatus("Replaced · ⌘Z in the app undoes it")
+            default:
+                self.report("The new text is on your clipboard: press ⌘V to replace your selection.")
+            }
+            AppLog.write("\(style.label): \(TextProcessing.wordCount(selected)) words in, \(TextProcessing.wordCount(result)) out")
         }
     }
 

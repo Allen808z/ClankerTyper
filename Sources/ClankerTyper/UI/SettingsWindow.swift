@@ -92,7 +92,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.removeFillers) private var removeFillers = true
     @AppStorage(AppSettings.Key.smartSpacing) private var smartSpacing = true
     @AppStorage(AppSettings.Key.learnCorrections) private var learnCorrections = true
-    @AppStorage(AppSettings.Key.aiCleanup) private var aiCleanup = false
+    @AppStorage(AppSettings.Key.aiCleanup) private var aiCleanup = true
     @AppStorage(AppSettings.Key.provider) private var provider = AppSettings.Provider.anthropic.rawValue
     @AppStorage(AppSettings.Key.ollamaModel) private var ollamaModel = "qwen2.5vl:7b"
     @AppStorage(AppSettings.Key.ollamaHost) private var ollamaHost = OllamaClient.defaultHost.absoluteString
@@ -107,6 +107,8 @@ struct SettingsView: View {
                 LabeledContent("Dictate", value: "Hold ⌃ Control + ⌥ Option")
                 LabeledContent("Hands-free", value: "Double-tap ⌃⌥, tap again to stop")
                 LabeledContent("Paste last transcript", value: "⌃⌥V")
+                LabeledContent("Fix grammar of highlighted text", value: "⌃⌥G")
+                LabeledContent("Improve writing of highlighted text", value: "⌃⌥E")
             }
 
             Section("Languages") {
@@ -134,14 +136,21 @@ struct SettingsView: View {
                 Text("When you fix a pasted word that isn't everyday vocabulary, like a name or a brand, ClankerTyper remembers it. Ordinary words and accidental edits are not learned. Learned words appear in Dictionary.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle("Clean up grammar with my local model", isOn: $aiCleanup)
-                if aiCleanup {
-                    TextField("Ollama model", text: $ollamaModel)
-                    Text("Runs on this Mac through Ollama. Adds a moment before pasting. If the model is slow or changes your meaning, the original is kept.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Toggle("Correct grammar so each phrase makes sense", isOn: $aiCleanup)
+                Text("Uses your local model through Ollama before pasting. If the model is unavailable, slow, or changes your meaning, your words are pasted as heard.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text("Everything you dictate also stays on the clipboard.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Writing tools") {
+                Text("Highlight text in any app, then press ⌃⌥G to fix its grammar or ⌃⌥E to improve the writing. The selection is replaced; ⌘Z in that app undoes it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("Local model (Ollama)", text: $ollamaModel)
+                Text("Used for grammar correction and writing tools. Nothing leaves your Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -39,7 +39,8 @@ struct OllamaClient {
 
     /// Builds the POST request. Pure: no I/O.
     static func makeRequest(host: URL, model: String, system: String,
-                            messages: [AnthropicClient.Message], timeout: TimeInterval = 300) throws -> URLRequest {
+                            messages: [AnthropicClient.Message], timeout: TimeInterval = 300,
+                            keepAlive: String? = nil) throws -> URLRequest {
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !model.isEmpty else { throw ClientError.noModel }
 
@@ -60,18 +61,33 @@ struct OllamaClient {
             ))
         }
 
-        struct Body: Encodable {
-            let model: String
-            let messages: [Message]
-            let stream: Bool
-        }
+        // Local models on a laptop can be slow, especially the first request after loading.
+        return try chatRequest(host: host, body: Body(model: model, messages: chat, stream: false, keep_alive: keepAlive), timeout: timeout)
+    }
+
+    /// `keep_alive` tells Ollama how long to keep the model loaded after this request.
+    private struct Body: Encodable {
+        let model: String
+        let messages: [Message]
+        let stream: Bool
+        let keep_alive: String?
+    }
+
+    private static func chatRequest(host: URL, body: Body, timeout: TimeInterval) throws -> URLRequest {
         var request = URLRequest(url: host.appendingPathComponent("api/chat"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
-        // Local models on a laptop can be slow, especially the first request after loading.
         request.timeoutInterval = timeout
-        request.httpBody = try JSONEncoder().encode(Body(model: model, messages: chat, stream: false))
+        request.httpBody = try JSONEncoder().encode(body)
         return request
+    }
+
+    /// Loads the model without generating anything (an empty chat), so the next request is fast.
+    func load(host: URL, model: String, keepAlive: String) async throws {
+        let request = try Self.chatRequest(
+            host: host, body: Body(model: model, messages: [], stream: false, keep_alive: keepAlive), timeout: 120
+        )
+        _ = try await URLSession.shared.data(for: request)
     }
 
     /// Reads the assistant text from a non-streaming `/api/chat` response.
@@ -99,8 +115,9 @@ struct OllamaClient {
     }
 
     func send(host: URL, model: String, system: String, messages: [AnthropicClient.Message],
-              timeout: TimeInterval = 300) async throws -> String {
-        let request = try Self.makeRequest(host: host, model: model, system: system, messages: messages, timeout: timeout)
+              timeout: TimeInterval = 300, keepAlive: String? = nil) async throws -> String {
+        let request = try Self.makeRequest(host: host, model: model, system: system, messages: messages,
+                                           timeout: timeout, keepAlive: keepAlive)
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0

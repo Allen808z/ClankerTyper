@@ -85,6 +85,7 @@ final class CursorOverlay {
     private(set) var isVisible = true
     private var liveText = ""
     private var recordingLabel = "REC"
+    private var busyLabel: String?
     private var screenObserver: NSObjectProtocol?
 
     func start() {
@@ -103,6 +104,12 @@ final class CursorOverlay {
     /// Live caption shown in the REC pill while the shortcut is held.
     func setLiveText(_ text: String) {
         liveText = text
+    }
+
+    /// Shows a bubble above the pointer with a blue dot while the local model works on text.
+    /// Pass nil to hide it.
+    func showBusy(_ label: String?) {
+        busyLabel = label
     }
 
     /// Header of the recording bubble: "REC" while holding, "HANDS-FREE" in hands-free mode.
@@ -141,6 +148,7 @@ final class CursorOverlay {
             window.companionView.companionVisible = isVisible
             window.companionView.liveText = liveText
             window.companionView.recordingLabel = recordingLabel
+            window.companionView.busyLabel = busyLabel
             window.companionView.needsDisplay = true
         }
     }
@@ -192,6 +200,8 @@ final class CompanionView: NSView {
     /// Partial transcript shown next to the REC dot.
     var liveText = ""
     var recordingLabel = "REC"
+    /// When set, the bubble shows this label with a blue dot instead of recording.
+    var busyLabel: String?
 
     override var isFlipped: Bool { false }
 
@@ -228,10 +238,12 @@ final class CompanionView: NSView {
     /// Recording bubble above the pointer while the shortcut is held: a REC header and the whole
     /// transcript so far, wrapped over as many lines as it needs (newest text at the bottom).
     private func drawRecordingPill() {
-        guard listening, screenFrame.contains(mouse) else { return }
+        let busy = !listening && busyLabel != nil
+        guard listening || busy, screenFrame.contains(mouse) else { return }
         let anchor = CGPoint(x: mouse.x - screenOrigin.x, y: mouse.y - screenOrigin.y)
+        let liveText = busy ? "" : self.liveText
 
-        let rec = NSAttributedString(string: recordingLabel, attributes: [
+        let rec = NSAttributedString(string: busy ? busyLabel! : recordingLabel, attributes: [
             .font: NSFont.systemFont(ofSize: 10, weight: .bold),
             .foregroundColor: NSColor.white,
         ])
@@ -261,7 +273,7 @@ final class CompanionView: NSView {
 
         // Pulse the dot so it reads as live, not as a static badge.
         let pulse = 0.55 + 0.45 * (sin(CACurrentMediaTime() * 6) + 1) / 2
-        NSColor.systemRed.withAlphaComponent(CGFloat(pulse)).setFill()
+        (busy ? Brand.blue : NSColor.systemRed).withAlphaComponent(CGFloat(pulse)).setFill()
         let headerY = bubble.maxY - headerHeight / 2
         NSBezierPath(ovalIn: NSRect(x: bubble.minX + 10, y: headerY - 4, width: 8, height: 8)).fill()
         rec.draw(at: CGPoint(x: bubble.minX + 23, y: headerY - rec.size().height / 2))

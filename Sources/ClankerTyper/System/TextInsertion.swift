@@ -47,6 +47,7 @@ enum TextInsertion {
             return .notAllowed
         }
 
+        await KeyStroke.waitForModifiersReleased()
         if FocusTracker.restore(focus) {
             // Give the app a moment to come back to the front before the keystroke.
             try? await Task.sleep(nanoseconds: 150_000_000)
@@ -58,7 +59,7 @@ enum TextInsertion {
         item.setDataProvider(witness, forTypes: [.string])
         pasteboard.clearContents()
         pasteboard.writeObjects([item])
-        postCommandV()
+        KeyStroke.post(keyCode: 9, flags: .maskCommand)  // Cmd+V ("V" on the US layout)
 
         let deadline = Date().addingTimeInterval(pasteConfirmWindow)
         while !witness.wasRequested, Date() < deadline {
@@ -76,17 +77,5 @@ enum TextInsertion {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-    }
-
-    /// Cmd+V. Virtual key 9 is "V" on the US keyboard layout; other layouts may differ.
-    private static func postCommandV() {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let vKey: CGKeyCode = 9
-        let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true)
-        down?.flags = .maskCommand
-        let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false)
-        up?.flags = .maskCommand
-        down?.post(tap: .cghidEventTap)
-        up?.post(tap: .cghidEventTap)
     }
 }

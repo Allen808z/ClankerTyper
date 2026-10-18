@@ -5,6 +5,8 @@ import AppKit
 final class StatusMenu: NSObject {
     var onOpenHub: (() -> Void)?
     var onPasteLast: (() -> Void)?
+    var onFixGrammar: (() -> Void)?
+    var onImproveWriting: (() -> Void)?
     var onAsk: (() -> Void)?
     var onSettings: (() -> Void)?
     var onPermissions: (() -> Void)?
@@ -37,6 +39,12 @@ final class StatusMenu: NSObject {
         let pasteLast = makeItem("Paste last transcript", #selector(pasteLastTranscript), "v")
         pasteLast.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(pasteLast)
+        let fix = makeItem("Fix grammar of selection", #selector(fixGrammar), "g")
+        fix.keyEquivalentModifierMask = [.control, .option]
+        menu.addItem(fix)
+        let improve = makeItem("Improve writing of selection", #selector(improveWriting), "e")
+        improve.keyEquivalentModifierMask = [.control, .option]
+        menu.addItem(improve)
         let ask = makeItem("Ask by typing…", #selector(ask), "k")
         askItem = ask
         menu.addItem(ask)
@@ -91,6 +99,8 @@ final class StatusMenu: NSObject {
 
     @objc private func openHub() { onOpenHub?() }
     @objc private func pasteLastTranscript() { onPasteLast?() }
+    @objc private func fixGrammar() { onFixGrammar?() }
+    @objc private func improveWriting() { onImproveWriting?() }
 
     private func makeItem(_ title: String, _ action: Selector, _ key: String) -> NSMenuItem {
         let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: key)

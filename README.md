@@ -24,6 +24,8 @@ Allow Microphone, Speech Recognition and Accessibility when asked.
 | Hold ⌃ Control + ⌥ Option | Dictate while held |
 | Double-tap ⌃⌥ | Hands-free: keep dictating until you tap again |
 | ⌃⌥V | Paste the last transcript again |
+| ⌃⌥G | Fix the grammar of highlighted text in any app |
+| ⌃⌥E | Improve the writing of highlighted text in any app |
 
 - A REC bubble above the pointer shows your words as you speak.
 - Pauses are kept: each phrase ends with a full stop and the next starts with a capital.
@@ -34,7 +36,11 @@ Allow Microphone, Speech Recognition and Accessibility when asked.
   muted while you dictate. Each can be switched off in Settings.
 - When you correct a pasted word that isn't everyday vocabulary (a name, a brand), ClankerTyper
   learns it. Ordinary words and accidental one-letter deletions are not learned.
-- Optional grammar cleanup through a local Ollama model.
+- Before pasting, a local Ollama model corrects grammar so each phrase makes sense. If the model
+  is unavailable, slow, or changes the meaning, your words are pasted as heard.
+- Highlight text anywhere and press ⌃⌥G or ⌃⌥E: the selection is replaced (⌘Z undoes it).
+  Check the prompts from Terminal with
+  `/Applications/ClankerTyper.app/Contents/MacOS/ClankerTyper --rewrite grammar "text"`.
 
 The main window (menu bar icon → Open ClankerTyper) has Home (stats and recent dictations),
 History, Dictionary (your words, replacements and what was learned), Snippets and Settings.

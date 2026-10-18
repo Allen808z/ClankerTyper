@@ -113,6 +113,8 @@ private struct HomePage: View {
                     ShortcutRow(keys: "Hold ⌃⌥", action: "Dictate while held")
                     ShortcutRow(keys: "Double-tap ⌃⌥", action: "Hands-free: talk without holding, tap again to stop")
                     ShortcutRow(keys: "⌃⌥V", action: "Paste the last transcript again")
+                    ShortcutRow(keys: "⌃⌥G", action: "Fix the grammar of highlighted text")
+                    ShortcutRow(keys: "⌃⌥E", action: "Improve the writing of highlighted text")
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
