@@ -39,6 +39,8 @@ Allow Microphone, Speech Recognition and Accessibility when asked.
 - Before pasting, a local Ollama model corrects grammar so each phrase makes sense. If the model
   is unavailable, slow, or changes the meaning, your words are pasted as heard.
 - Highlight text anywhere and press ⌃⌥G or ⌃⌥E: the selection is replaced (⌘Z undoes it).
+  Or just highlight editable text, however you select it: Fix grammar and Improve writing buttons
+  appear above it in apps that report their selection to macOS.
   Check the prompts from Terminal with
   `/Applications/ClankerTyper.app/Contents/MacOS/ClankerTyper --rewrite grammar "text"`.
 

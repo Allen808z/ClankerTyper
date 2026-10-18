@@ -62,6 +62,35 @@ enum FocusTracker {
         string(element, kAXValueAttribute)
     }
 
+    /// True when the element's text can be changed, so replacing the selection will work.
+    static func isEditable(_ element: AXUIElement) -> Bool {
+        var settable: DarwinBoolean = false
+        if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success {
+            return settable.boolValue
+        }
+        let role = string(element, kAXRoleAttribute)
+        return role == (kAXTextAreaRole as String) || role == (kAXTextFieldRole as String)
+    }
+
+    /// Where the selected text is on screen, in AppKit coordinates, when the app reports it.
+    static func selectionBounds(_ element: AXUIElement) -> CGRect? {
+        var rangeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeValue) == .success,
+              let rangeValue else { return nil }
+        var boundsValue: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(element, kAXBoundsForRangeParameterizedAttribute as CFString,
+                                                         rangeValue, &boundsValue) == .success,
+              let boundsValue, CFGetTypeID(boundsValue) == AXValueGetTypeID() else { return nil }
+        var rect = CGRect.zero
+        guard AXValueGetValue(boundsValue as! AXValue, .cgRect, &rect), rect.width > 0 || rect.height > 0 else { return nil }
+        return appKitRect(fromAccessibility: rect, primaryScreenHeight: NSScreen.screens.first?.frame.height ?? 0)
+    }
+
+    /// Accessibility measures from the top-left of the main screen; AppKit from its bottom-left.
+    nonisolated static func appKitRect(fromAccessibility rect: CGRect, primaryScreenHeight: CGFloat) -> CGRect {
+        CGRect(x: rect.minX, y: primaryScreenHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
+
     /// The highlighted text in the element, when the app exposes it.
     static func selectedText(_ element: AXUIElement) -> String? {
         string(element, kAXSelectedTextAttribute)

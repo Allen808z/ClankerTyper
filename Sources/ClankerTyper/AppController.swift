@@ -28,6 +28,8 @@ final class CompanionController {
     private let assistant = Assistant()
     private let muter = AudioMuter()
     private let watcher = CorrectionWatcher()
+    private let selectionToolbar = SelectionToolbar()
+    private var rewriting = false
     private let permissions = PermissionState()
     let store = ClankerTyperStore(directory: ClankerTyperStore.defaultDirectory())
     private lazy var hub = HubWindowController(store: store, permissions: permissions)
@@ -99,6 +101,12 @@ final class CompanionController {
         }
         card.model.onSubmit = { [weak self] text in self?.submit(text) }
         watcher.onCorrections = { [weak self] corrections in self?.learn(corrections) }
+        selectionToolbar.onAction = { [weak self] style, target in self?.rewriteSelection(style, target: target) }
+        selectionToolbar.isBusy = { [weak self] in
+            guard let self else { return true }
+            if case .idle = self.recording { return self.rewriting }
+            return true
+        }
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
@@ -324,13 +332,16 @@ final class CompanionController {
 
     /// Control + Option + G or E, or the menu: fixes or improves the highlighted text in the app
     /// in front, and replaces it.
-    private func rewriteSelection(_ style: Rewriter.Style) {
+    /// - Parameter given: where the selection is, when the selection toolbar already knows.
+    private func rewriteSelection(_ style: Rewriter.Style, target given: FocusSnapshot? = nil) {
         // Holding Control + Option to press the letter starts a recording; it was never meant as one.
         if case .holding = recording {
             cancelRecording()
             ignoreNextRelease = true
         }
-        let target = FocusTracker.capture()
+        guard !rewriting else { return }
+        selectionToolbar.hide()
+        let target = given ?? FocusTracker.capture()
         guard !FocusTracker.isSecure(target.element) else {
             report("That's a password field, so it was left alone.")
             return
@@ -345,7 +356,11 @@ final class CompanionController {
             }
             self.overlay.showBusy("\(style.label)…")
             self.menu?.setStatus("\(style.label)…")
-            defer { self.overlay.showBusy(nil) }
+            self.rewriting = true
+            defer {
+                self.overlay.showBusy(nil)
+                self.rewriting = false
+            }
 
             let result: String
             do {
@@ -491,6 +506,11 @@ final class CompanionController {
     /// Applies the transcribe-only switch to the card and menu.
     private func applyMode() {
         card.model.transcribeOnly = AppSettings.transcribeOnly
+        if AppSettings.selectionToolbar {
+            selectionToolbar.start()
+        } else if selectionToolbar.isRunning {
+            selectionToolbar.stop()
+        }
         refreshMenu()
     }
 

@@ -100,6 +100,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.speakReplies) private var speakReplies = true
     @AppStorage(AppSettings.Key.showCompanion) private var showCompanion = true
     @AppStorage(AppSettings.Key.showInDock) private var showInDock = true
+    @AppStorage(AppSettings.Key.selectionToolbar) private var selectionToolbar = true
 
     var body: some View {
         Form {
@@ -146,6 +147,10 @@ struct SettingsView: View {
             }
 
             Section("Writing tools") {
+                Toggle("Show Fix grammar and Improve writing when I highlight text", isOn: $selectionToolbar)
+                Text("Highlight text you can edit, however you select it, and the buttons appear just above it. They appear in apps that report their selection to macOS; the shortcuts work everywhere.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text("Highlight text in any app, then press ⌃⌥G to fix its grammar or ⌃⌥E to improve the writing. The selection is replaced; ⌘Z in that app undoes it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

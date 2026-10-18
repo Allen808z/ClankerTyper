@@ -22,6 +22,7 @@ enum AppSettings {
         static let speakReplies = "speakReplies"
         static let showCompanion = "showCompanion"
         static let showInDock = "showInDock"
+        static let selectionToolbar = "selectionToolbar"
         static let onboardingDone = "onboardingDone"
     }
 
@@ -161,6 +162,12 @@ enum AppSettings {
     static var showInDock: Bool {
         get { defaults.object(forKey: Key.showInDock) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.showInDock) }
+    }
+
+    /// Offer Fix grammar / Improve writing next to the pointer when text is selected.
+    static var selectionToolbar: Bool {
+        get { defaults.object(forKey: Key.selectionToolbar) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.selectionToolbar) }
     }
 
     static var activationPolicy: NSApplication.ActivationPolicy {
