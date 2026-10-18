@@ -1,0 +1,215 @@
+import Foundation
+
+struct HistoryItem: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var date: Date
+    /// What the recognizer heard, before cleanup.
+    var rawText: String
+    /// What was pasted or copied.
+    var text: String
+    var appName: String?
+    var duration: TimeInterval
+    var words: Int
+    var outcome: String
+}
+
+/// A word the recognizer should expect: names, brands, jargon.
+struct VocabularyWord: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var word: String
+    /// True when Clanker learned it from a correction, false when the user added it.
+    var learned: Bool
+    var added: Date
+}
+
+/// Replaces a misheard word or phrase with the right one.
+struct Replacement: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var from: String
+    var to: String
+    var learned: Bool
+    var added: Date
+}
+
+/// A spoken trigger phrase that expands into stored text.
+struct Snippet: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var trigger: String
+    var expansion: String
+}
+
+/// Everything Clanker keeps between launches, in one JSON file under Application Support.
+@MainActor
+final class ClankerStore: ObservableObject {
+    struct Contents: Codable {
+        var history: [HistoryItem] = []
+        var vocabulary: [VocabularyWord] = []
+        var replacements: [Replacement] = []
+        var snippets: [Snippet] = []
+    }
+
+    static let historyLimit = 1000
+
+    @Published private(set) var history: [HistoryItem] = []
+    @Published private(set) var vocabulary: [VocabularyWord] = []
+    @Published private(set) var replacements: [Replacement] = []
+    @Published private(set) var snippets: [Snippet] = []
+
+    private let file: URL
+
+    init(directory: URL) {
+        file = directory.appendingPathComponent("store.json")
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        if let data = try? Data(contentsOf: file) {
+            if let contents = try? JSONDecoder.store.decode(Contents.self, from: data) {
+                history = contents.history
+                vocabulary = contents.vocabulary
+                replacements = contents.replacements
+                snippets = contents.snippets
+            } else {
+                // Keep an unreadable file instead of overwriting the user's data with an empty store.
+                let backup = directory.appendingPathComponent("store-unreadable-\(Int(Date().timeIntervalSince1970)).json")
+                try? FileManager.default.moveItem(at: file, to: backup)
+                AppLog.write("store.json could not be read; moved it to \(backup.lastPathComponent)")
+            }
+        }
+    }
+
+    static func defaultDirectory() -> URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Clanker", isDirectory: true)
+    }
+
+    // MARK: - History
+
+    func addHistory(_ item: HistoryItem) {
+        history.insert(item, at: 0)
+        if history.count > Self.historyLimit {
+            history.removeLast(history.count - Self.historyLimit)
+        }
+        save()
+    }
+
+    func deleteHistory(_ id: HistoryItem.ID) {
+        history.removeAll { $0.id == id }
+        save()
+    }
+
+    func clearHistory() {
+        history.removeAll()
+        save()
+    }
+
+    var lastTranscript: String? { history.first?.text }
+
+    // MARK: - Stats
+
+    var totalWords: Int { history.reduce(0) { $0 + $1.words } }
+
+    /// Speaking speed over all dictations that lasted long enough to measure.
+    var averageWordsPerMinute: Int {
+        let timed = history.filter { $0.duration >= 1 }
+        let minutes = timed.reduce(0) { $0 + $1.duration } / 60
+        guard minutes > 0 else { return 0 }
+        return Int((Double(timed.reduce(0) { $0 + $1.words }) / minutes).rounded())
+    }
+
+    var wordsThisWeek: Int {
+        let start = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        return history.filter { $0.date >= start }.reduce(0) { $0 + $1.words }
+    }
+
+    var learnedCount: Int { replacements.filter(\.learned).count }
+
+    // MARK: - Dictionary
+
+    func addWord(_ word: String, learned: Bool = false) {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              !vocabulary.contains(where: { $0.word.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
+        vocabulary.insert(VocabularyWord(word: trimmed, learned: learned, added: Date()), at: 0)
+        save()
+    }
+
+    func deleteWord(_ id: VocabularyWord.ID) {
+        vocabulary.removeAll { $0.id == id }
+        save()
+    }
+
+    func addReplacement(from: String, to: String, learned: Bool = false) {
+        let from = from.trimmingCharacters(in: .whitespacesAndNewlines)
+        let to = to.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !from.isEmpty, !to.isEmpty, from != to else { return }
+        // A newer correction of the same word replaces the older one.
+        replacements.removeAll { $0.from.caseInsensitiveCompare(from) == .orderedSame }
+        replacements.insert(Replacement(from: from, to: to, learned: learned, added: Date()), at: 0)
+        save()
+    }
+
+    func deleteReplacement(_ id: Replacement.ID) {
+        replacements.removeAll { $0.id == id }
+        save()
+    }
+
+    /// Remembers a correction: the misheard word is replaced from now on, and the right word
+    /// is given to the recognizer as a hint. Returns false when it was already known.
+    @discardableResult
+    func learn(_ correction: TextProcessing.Correction) -> Bool {
+        let known = replacements.contains {
+            $0.from.caseInsensitiveCompare(correction.heard) == .orderedSame && $0.to == correction.corrected
+        }
+        guard !known else { return false }
+        addReplacement(from: correction.heard, to: correction.corrected, learned: true)
+        addWord(correction.corrected, learned: true)
+        return true
+    }
+
+    /// Words handed to the recognizer as hints. Apple's recognizer accepts a short list.
+    var recognitionHints: [String] {
+        Array(vocabulary.map(\.word).prefix(100))
+    }
+
+    // MARK: - Snippets
+
+    func addSnippet(trigger: String, expansion: String) {
+        let trigger = trigger.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trigger.isEmpty, !expansion.isEmpty else { return }
+        snippets.removeAll { $0.trigger.caseInsensitiveCompare(trigger) == .orderedSame }
+        snippets.insert(Snippet(trigger: trigger, expansion: expansion), at: 0)
+        save()
+    }
+
+    func deleteSnippet(_ id: Snippet.ID) {
+        snippets.removeAll { $0.id == id }
+        save()
+    }
+
+    // MARK: - Persistence
+
+    private func save() {
+        let contents = Contents(history: history, vocabulary: vocabulary, replacements: replacements, snippets: snippets)
+        do {
+            let data = try JSONEncoder.store.encode(contents)
+            try data.write(to: file, options: .atomic)
+        } catch {
+            AppLog.write("could not save store.json: \(error.localizedDescription)")
+        }
+    }
+}
+
+private extension JSONEncoder {
+    static let store: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }()
+}
+
+private extension JSONDecoder {
+    static let store: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }()
+}
