@@ -99,6 +99,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.model) private var model = AppSettings.models[0].id
     @AppStorage(AppSettings.Key.speakReplies) private var speakReplies = true
     @AppStorage(AppSettings.Key.showCompanion) private var showCompanion = true
+    @AppStorage(AppSettings.Key.showInDock) private var showInDock = true
 
     var body: some View {
         Form {
@@ -193,6 +194,18 @@ struct SettingsView: View {
                     }
                 }
             }
+            }
+
+            Section("App") {
+                Toggle("Show ClankerTyper in the Dock", isOn: $showInDock)
+                    .onChange(of: showInDock) { _, visible in
+                        NSApp.setActivationPolicy(visible ? .regular : .accessory)
+                        // Switching policy can drop this window behind others; keep it in front.
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                Text("It is always in the menu bar at the top right.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Companion") {

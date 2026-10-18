@@ -17,9 +17,8 @@ cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 
 ICON_PNG="$ROOT/build/AppIcon-1024.png"
 mkdir -p "$ROOT/build"
-if [ ! -f "$ICON_PNG" ]; then
-  swift "$ROOT/scripts/make-icon.swift" "$ICON_PNG" 1024 >/dev/null
-fi
+# Always redraw, so a change to make-icon.swift shows up in the next build.
+swift "$ROOT/scripts/make-icon.swift" "$ICON_PNG" >/dev/null
 ICONSET="$ROOT/build/AppIcon.iconset"
 rm -rf "$ICONSET" && mkdir -p "$ICONSET"
 for size in 16 32 128 256 512; do

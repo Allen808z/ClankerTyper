@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Security
 
@@ -20,6 +21,7 @@ enum AppSettings {
         static let model = "model"
         static let speakReplies = "speakReplies"
         static let showCompanion = "showCompanion"
+        static let showInDock = "showInDock"
         static let onboardingDone = "onboardingDone"
     }
 
@@ -150,6 +152,16 @@ enum AppSettings {
     static var showCompanion: Bool {
         get { defaults.object(forKey: Key.showCompanion) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.showCompanion) }
+    }
+
+    /// Show the app icon in the Dock while ClankerTyper runs. Off keeps it in the menu bar only.
+    static var showInDock: Bool {
+        get { defaults.object(forKey: Key.showInDock) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.showInDock) }
+    }
+
+    static var activationPolicy: NSApplication.ActivationPolicy {
+        showInDock ? .regular : .accessory
     }
 
     static var onboardingDone: Bool {

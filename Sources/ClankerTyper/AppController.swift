@@ -103,6 +103,10 @@ final class CompanionController {
         }
     }
 
+    func openHub(_ page: HubPage = .home) {
+        hub.show(page)
+    }
+
     func showStartWindow() {
         if AppSettings.onboardingDone {
             hub.show(.home)
