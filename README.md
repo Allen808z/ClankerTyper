@@ -9,9 +9,11 @@ dictation ideas from Wispr Flow. Not affiliated with either.
 Requires macOS 14+ and the Swift 5.10+ toolchain (Command Line Tools is enough).
 
 ```bash
-./scripts/build-app.sh
-open build/Clanker.app
+./scripts/install.sh
 ```
+
+This builds Clanker, quits any running copy, installs it as `/Applications/Clanker.app` and
+opens it. Run it again after each change. `./scripts/build-app.sh` only builds `build/Clanker.app`.
 
 Allow Microphone, Speech Recognition and Accessibility when asked.
 
