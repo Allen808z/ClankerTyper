@@ -42,31 +42,11 @@ final class HotKey {
     }
 
     static let signature = OSType(0x434C4B52)  // "CLKR"
-    static let controlOption = UInt32(controlKey | optionKey)
-
-    /// Control + Option shortcuts. Each needs a distinct id.
+    /// The actions with a global shortcut. Each needs a distinct id; the keys come from Settings.
     enum Shortcut: UInt32, CaseIterable {
         case pasteLast = 1
         case fixGrammar = 2
         case improveWriting = 3
         case undoLast = 4
-
-        var keyCode: UInt32 {
-            switch self {
-            case .pasteLast: return UInt32(kVK_ANSI_V)
-            case .fixGrammar: return UInt32(kVK_ANSI_G)
-            case .improveWriting: return UInt32(kVK_ANSI_E)
-            case .undoLast: return UInt32(kVK_ANSI_Z)
-            }
-        }
-
-        var label: String {
-            switch self {
-            case .pasteLast: return "⌃⌥V"
-            case .fixGrammar: return "⌃⌥G"
-            case .improveWriting: return "⌃⌥E"
-            case .undoLast: return "⌃⌥Z"
-            }
-        }
     }
 }

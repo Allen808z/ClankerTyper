@@ -41,6 +41,13 @@ final class CompanionController {
     private lazy var onboardingWindow = OnboardingWindowController(permissions: permissions)
     private var menu: StatusMenu?
     private var hotKeys: [HotKey] = []
+    /// The combos currently registered, to re-register only when Settings change them.
+    private var registeredCombos: [HotKey.Shortcut: KeyCombo] = [:]
+    private var recordingShortcut = false
+    private let sounds = SoundCues()
+    /// Plays the start sound and mutes other audio once a hold lasts past a tap.
+    private var startCue: Task<Void, Never>?
+    private var startCuePlayed = false
     private var turnTask: Task<Void, Never>?
 
     private var recording: Recording = .idle
@@ -101,23 +108,11 @@ final class CompanionController {
         pushToTalk.onPress = { [weak self] in self?.shortcutPressed() }
         pushToTalk.onRelease = { [weak self] in self?.shortcutReleased() }
         pushToTalk.onShift = { [weak self] in self?.enterCommandMode() }
+        pushToTalk.onOtherKey = { [weak self] in self?.otherKeyDuringHold() }
         pushToTalk.start()
 
-        for shortcut in HotKey.Shortcut.allCases {
-            let hotKey = HotKey(id: shortcut.rawValue, keyCode: shortcut.keyCode, modifiers: HotKey.controlOption) { [weak self] in
-                switch shortcut {
-                case .pasteLast: self?.pasteLast()
-                case .fixGrammar: self?.rewriteSelection(.grammar)
-                case .improveWriting: self?.rewriteSelection(.improve)
-                case .undoLast: self?.undoLastDictation()
-                }
-            }
-            if let hotKey {
-                hotKeys.append(hotKey)
-            } else {
-                AppLog.write("could not register \(shortcut.label); another app may be using it")
-            }
-        }
+        registerHotKeys()
+        observeShortcutRecording()
 
         dictation.onPartial = { [weak self] text in
             self?.card.model.status = .listening(partial: text)
@@ -143,7 +138,88 @@ final class CompanionController {
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.applyMode() }
+            MainActor.assumeIsolated {
+                self?.applyMode()
+                self?.registerHotKeys()
+            }
+        }
+    }
+
+    /// While a shortcut is being recorded in Settings, ClankerTyper's own shortcuts are paused,
+    /// so pressing the current one records it instead of running it.
+    private func observeShortcutRecording() {
+        NotificationCenter.default.addObserver(forName: .shortcutRecording, object: nil, queue: .main) { [weak self] note in
+            let recordingShortcut = note.object as? Bool ?? false
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.recordingShortcut = recordingShortcut
+                if recordingShortcut {
+                    self.hotKeys.removeAll()
+                    self.registeredCombos = [:]
+                } else {
+                    self.registerHotKeys()
+                }
+            }
+        }
+    }
+
+    /// Registers the action shortcuts chosen in Settings. Runs again whenever Settings change,
+    /// and only re-registers when a combo actually changed.
+    private func registerHotKeys() {
+        guard !recordingShortcut else { return }
+        let wanted = Dictionary(uniqueKeysWithValues: HotKey.Shortcut.allCases.map { ($0, AppSettings.combo(for: $0)) })
+        guard wanted != registeredCombos else { return }
+        hotKeys.removeAll()
+        registeredCombos = wanted
+        for shortcut in HotKey.Shortcut.allCases {
+            let combo = wanted[shortcut] ?? shortcut.defaultCombo
+            let hotKey = HotKey(id: shortcut.rawValue, keyCode: combo.keyCode, modifiers: combo.carbonModifiers) { [weak self] in
+                switch shortcut {
+                case .pasteLast: self?.pasteLast()
+                case .fixGrammar: self?.rewriteSelection(.grammar)
+                case .improveWriting: self?.rewriteSelection(.improve)
+                case .undoLast: self?.undoLastDictation()
+                }
+            }
+            if let hotKey {
+                hotKeys.append(hotKey)
+            } else {
+                AppLog.write("could not register \(combo.display) for \(shortcut.title); another app may be using it")
+            }
+        }
+        refreshMenu()
+    }
+
+    /// A key pressed while holding the talk key: the hold was a normal shortcut (⌘C with the
+    /// right ⌘ key, say), so nothing is recorded.
+    private func otherKeyDuringHold() {
+        guard case .holding = recording else { return }
+        AppLog.write("another key pressed while holding; recording cancelled")
+        cancelRecording()
+        ignoreNextRelease = true
+    }
+
+    /// The start sound, then muting, once the hold has lasted longer than a tap. Quick taps,
+    /// such as the double tap for hands-free, stay silent and never mute anything.
+    private func scheduleStartCue() {
+        startCue?.cancel()
+        startCuePlayed = false
+        startCue = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.playStartCue()
+        }
+    }
+
+    private func playStartCue() async {
+        guard !startCuePlayed else { return }
+        startCuePlayed = true
+        sounds.playStart()
+        if AppSettings.muteAudio {
+            // Let the sound finish before muting the Mac's output.
+            try? await Task.sleep(nanoseconds: UInt64(SoundCues.startDuration * 1_000_000_000))
+            if case .idle = recording { return }
+            muter.begin()
         }
     }
 
@@ -192,8 +268,10 @@ final class CompanionController {
             // Second tap: keep listening until the next tap.
             lastTapEnded = nil
             recording = .handsFree(started: started)
+            startCue?.cancel()
+            Task { await playStartCue() }
             overlay.setRecordingLabel("HANDS-FREE")
-            menu?.setStatus("Hands-free: tap ⌃⌥ to stop")
+            menu?.setStatus("Hands-free: tap \(AppSettings.talkKey.symbol) to stop")
             AppLog.write("hands-free mode started")
         } else {
             // A single short tap: nothing to keep yet, but it may be the first of a double tap.
@@ -214,7 +292,6 @@ final class CompanionController {
         speaker.stop()
         overlay.cancelPointing()
         focus = FocusTracker.capture()
-        if AppSettings.muteAudio { muter.begin() }
         // Load the local model now, so grammar correction is quick when the user stops talking.
         if AppSettings.aiCleanup { Rewriter().warmUp() }
 
@@ -229,6 +306,7 @@ final class CompanionController {
 
         recording = .holding(started: Date())
         commandMode = false
+        scheduleStartCue()
         overlay.setRecordingLabel("REC")
         overlay.setListening(true)
         if AppSettings.transcribeOnly {
@@ -256,6 +334,7 @@ final class CompanionController {
     private func cancelRecording() {
         recording = .idle
         commandMode = false
+        startCue?.cancel()
         dictation.cancel()
         muter.end()
         overlay.setListening(false)
@@ -276,11 +355,14 @@ final class CompanionController {
         let snapshot = focus
         let isCommand = commandMode
         commandMode = false
+        startCue?.cancel()
+        let cuePlayed = startCuePlayed
 
         Task { [weak self] in
             guard let self else { return }
             let raw = await self.dictation.stop()
             self.muter.end()
+            if cuePlayed { self.sounds.playStop() }
             self.overlay.setLiveText("")
             AppLog.write("transcript: \(raw.count) characters")
 
@@ -407,7 +489,7 @@ final class CompanionController {
             guard let self else { return }
             await KeyStroke.waitForModifiersReleased()
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == last.target.app?.processIdentifier else {
-                self.report("Go back to \(last.target.appName ?? "the app you dictated into"), then press ⌃⌥Z.")
+                self.report("Go back to \(last.target.appName ?? "the app you dictated into"), then press \(AppSettings.combo(for: .undoLast).display).")
                 return
             }
             FocusTracker.restore(last.target)
@@ -517,7 +599,7 @@ final class CompanionController {
             await KeyStroke.waitForModifiersReleased()
             guard let selected = await SelectionReader.read(from: target),
                   !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                self.report("Highlight some text first, then press ⌃⌥G to fix grammar or ⌃⌥E to improve it.")
+                self.report("Highlight some text first, then press \(AppSettings.combo(for: .fixGrammar).display) to fix grammar or \(AppSettings.combo(for: .improveWriting).display) to improve it.")
                 return
             }
             self.overlay.showBusy("\(style.label)…")

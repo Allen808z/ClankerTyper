@@ -99,19 +99,31 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.showInDock) private var showInDock = true
     @AppStorage(AppSettings.Key.selectionToolbar) private var selectionToolbar = true
     @AppStorage(AppSettings.Key.launchAtLogin) private var launchAtLogin = true
+    @AppStorage(AppSettings.Key.talkKey) private var talkKey = TalkKey.controlOption.rawValue
+    @AppStorage(AppSettings.Key.playSounds) private var playSounds = true
     @State private var loginState = LoginItem.state
 
     var body: some View {
         Form {
             Section("Shortcuts") {
-                LabeledContent("Dictate", value: "Hold ⌃ Control + ⌥ Option")
-                LabeledContent("Hands-free", value: "Double-tap ⌃⌥, tap again to stop")
-                LabeledContent("Command mode", value: "Hold ⌃⌥⇧ and say what to do")
-                LabeledContent("Undo last dictation", value: "⌃⌥Z")
-                LabeledContent("Paste last transcript", value: "⌃⌥V")
-                LabeledContent("Fix grammar of highlighted text", value: "⌃⌥G")
-                LabeledContent("Improve writing of highlighted text", value: "⌃⌥E")
+                Picker("Hold to talk", selection: $talkKey) {
+                    ForEach(TalkKey.allCases) { key in
+                        Text(key.label).tag(key.rawValue)
+                    }
+                }
+                Text("Double-tap it for hands-free; hold it with ⇧ Shift for command mode.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let note = TalkKey(rawValue: talkKey)?.setupNote {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                ForEach(HotKey.Shortcut.allCases, id: \.self) { shortcut in
+                    ShortcutRecorderRow(shortcut: shortcut)
+                }
                 LabeledContent("While talking", value: "“new line”, “new paragraph”, “scratch that”")
+                Toggle("Play a sound when recording starts and stops", isOn: $playSounds)
             }
 
             Section("Languages") {
@@ -153,7 +165,7 @@ struct SettingsView: View {
                 Text("Highlight text you can edit, however you select it, and the buttons appear just above it. They appear in apps that report their selection to macOS; the shortcuts work everywhere.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("Highlight text in any app, then press ⌃⌥G to fix its grammar or ⌃⌥E to improve the writing. The selection is replaced; ⌘Z in that app undoes it.")
+                Text("Highlight text in any app, then press \(AppSettings.combo(for: .fixGrammar).display) to fix its grammar or \(AppSettings.combo(for: .improveWriting).display) to improve the writing. The selection is replaced; ⌘Z in that app undoes it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Picker("Model", selection: $writingEngine) {

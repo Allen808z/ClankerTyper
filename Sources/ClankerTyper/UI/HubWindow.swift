@@ -101,7 +101,7 @@ private struct HomePage: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Speak, and it's typed.")
                     .font(.system(size: 26, weight: .bold))
-                Text("Hold ⌃ Control + ⌥ Option anywhere and talk. Release, and your words land where your cursor is.")
+                Text("Hold \(AppSettings.talkKey.label) anywhere and talk. Release, and your words land where your cursor is.")
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
@@ -113,13 +113,14 @@ private struct HomePage: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Shortcuts").font(.headline)
-                    ShortcutRow(keys: "Hold ⌃⌥", action: "Dictate while held")
-                    ShortcutRow(keys: "Double-tap ⌃⌥", action: "Hands-free: talk without holding, tap again to stop")
-                    ShortcutRow(keys: "Hold ⌃⌥⇧", action: "Command mode: say what to do with highlighted text, or what to write")
-                    ShortcutRow(keys: "⌃⌥Z", action: "Undo the last dictation")
-                    ShortcutRow(keys: "⌃⌥V", action: "Paste the last transcript again")
-                    ShortcutRow(keys: "⌃⌥G", action: "Fix the grammar of highlighted text")
-                    ShortcutRow(keys: "⌃⌥E", action: "Improve the writing of highlighted text")
+                    let talk = AppSettings.talkKey.symbol
+                    ShortcutRow(keys: "Hold \(talk)", action: "Dictate while held")
+                    ShortcutRow(keys: "Double-tap \(talk)", action: "Hands-free: talk without holding, tap again to stop")
+                    ShortcutRow(keys: "Hold \(talk) + ⇧", action: "Command mode: say what to do with highlighted text, or what to write")
+                    ShortcutRow(keys: AppSettings.combo(for: .undoLast).display, action: "Undo the last dictation")
+                    ShortcutRow(keys: AppSettings.combo(for: .pasteLast).display, action: "Paste the last transcript again")
+                    ShortcutRow(keys: AppSettings.combo(for: .fixGrammar).display, action: "Fix the grammar of highlighted text")
+                    ShortcutRow(keys: AppSettings.combo(for: .improveWriting).display, action: "Improve the writing of highlighted text")
                     ShortcutRow(keys: "While talking", action: "Say “new line”, “new paragraph” or “scratch that”")
                 }
                 .padding(16)
@@ -461,7 +462,7 @@ private struct ActionsPage: View {
 
                 GroupBox("Command mode") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Hold ⌃ Control + ⌥ Option + ⇧ Shift and say what you want, then let go.")
+                        Text("Hold \(AppSettings.talkKey.label) + ⇧ Shift and say what you want, then let go.")
                         Text("With text highlighted, it is changed as you ask: “make this more polite”, “turn this into bullet points”, “translate to French”.")
                             .foregroundStyle(.secondary)
                         Text("With nothing highlighted, new text is written where your cursor is: “write a short thank-you note to Sam for the flowers”.")

@@ -22,6 +22,9 @@ enum AppSettings {
         static let showInDock = "showInDock"
         static let selectionToolbar = "selectionToolbar"
         static let launchAtLogin = "launchAtLogin"
+        static let talkKey = "talkKey"
+        static let shortcutPrefix = "shortcut."
+        static let playSounds = "playSounds"
         static let onboardingDone = "onboardingDone"
     }
 

@@ -6,18 +6,32 @@ dictation ideas from Wispr Flow. Not affiliated with either.
 
 ## Build and run
 
-Requires macOS 14+ and the Swift 5.10+ toolchain (Command Line Tools is enough).
+Requires macOS 14+ and Swift 5.10+ (Xcode or the Command Line Tools).
 
 ```bash
-./scripts/install.sh
+make run
 ```
 
-This builds ClankerTyper, quits any running copy, installs it as `/Applications/ClankerTyper.app` and
-opens it. Run it again after each change. `./scripts/build-app.sh` only builds `build/ClankerTyper.app`.
+That builds ClankerTyper, quits any running copy, installs it as `/Applications/ClankerTyper.app`
+and opens it. Allow Microphone, Speech Recognition and Accessibility when asked. Other commands:
 
-Allow Microphone, Speech Recognition and Accessibility when asked.
+| Command | What it does |
+|---|---|
+| `make` | List the commands |
+| `make test` | Run the unit tests |
+| `make check` | Tests, then a release build of the app |
+| `make install` | Build and install without opening |
+| `make restart` | Reopen the installed app without rebuilding |
+| `make quit` | Quit the running app |
+| `make logs` | Follow the app's log |
+| `make rewrite STYLE=formal TEXT="hey u there"` | Try a writing action on the model |
+| `make clean` | Remove build output |
 
 ## Use
+
+The shortcuts below are the defaults. In Settings → Shortcuts you can hold Fn, right ⌥ or right ⌘
+to talk instead, and record your own key for each action.
+
 
 | Shortcut | What it does |
 |---|---|
@@ -29,7 +43,8 @@ Allow Microphone, Speech Recognition and Accessibility when asked.
 | ⌃⌥G | Fix the grammar of highlighted text in any app |
 | ⌃⌥E | Improve the writing of highlighted text in any app |
 
-- A REC bubble above the pointer shows your words as you speak.
+- A REC bubble above the pointer shows your words as you speak, with a soft sound when recording
+  starts and stops (Settings → Shortcuts).
 - Say "new line", "new paragraph" or "scratch that" (French: "nouvelle ligne", "à la ligne",
   "nouveau paragraphe", "efface ça") while dictating.
 - With no text field to type into, dictation goes to a floating Scratchpad.
@@ -81,5 +96,5 @@ Everything stays on the Mac:
 ## Tests
 
 ```bash
-./scripts/test.sh
+make test
 ```

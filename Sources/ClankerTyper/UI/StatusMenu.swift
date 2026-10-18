@@ -29,7 +29,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     private var hintItem: NSMenuItem?
     private var languageItems: [NSMenuItem] = []
     private let selectionMenu = NSMenu(title: "Highlighted text")
-    static let readyHint = "Hold ⌃⌥ to talk"
+    static var readyHint: String { "Hold \(AppSettings.talkKey.symbol) to talk" }
+    private var shortcutItems: [HotKey.Shortcut: NSMenuItem] = [:]
 
     override init() {
         super.init()
@@ -46,17 +47,21 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let pasteLast = makeItem("Paste last transcript", #selector(pasteLastTranscript), "v")
         pasteLast.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(pasteLast)
+        shortcutItems[.pasteLast] = pasteLast
         let undo = makeItem("Undo last dictation", #selector(undoLast), "z")
         undo.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(undo)
+        shortcutItems[.undoLast] = undo
         menu.addItem(makeItem("Open Scratchpad", #selector(openScratchpad), ""))
         menu.addItem(.separator())
         let fix = makeItem("Fix grammar of selection", #selector(fixGrammar), "g")
         fix.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(fix)
+        shortcutItems[.fixGrammar] = fix
         let improve = makeItem("Improve writing of selection", #selector(improveWriting), "e")
         improve.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(improve)
+        shortcutItems[.improveWriting] = improve
         selectionMenu.delegate = self
         let selectionRoot = NSMenuItem(title: "More for highlighted text", action: nil, keyEquivalent: "")
         selectionRoot.submenu = selectionMenu
@@ -100,6 +105,16 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         speechItem.state = speakReplies ? .on : .off
         transcribeItem.state = transcribeOnly ? .on : .off
         askItem?.isHidden = transcribeOnly
+        // Show the shortcuts chosen in Settings; named keys (F5, arrows) are left off the menu.
+        for (shortcut, item) in shortcutItems {
+            let combo = AppSettings.combo(for: shortcut)
+            let single = combo.key.count == 1
+            item.keyEquivalent = single ? combo.key.lowercased() : ""
+            item.keyEquivalentModifierMask = single ? combo.modifierFlags : []
+        }
+        if let hint = hintItem, hint.title.hasPrefix("Hold ") {
+            hint.title = Self.readyHint
+        }
         let selected = AppSettings.dictationLanguages
         for languageItem in languageItems {
             let id = languageItem.representedObject as? String ?? ""
