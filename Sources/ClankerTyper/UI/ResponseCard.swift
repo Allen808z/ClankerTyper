@@ -132,7 +132,7 @@ struct CardView: View {
             Circle()
                 .fill(Brand.accent)
                 .frame(width: 10, height: 10)
-            Text("Clanker")
+            Text("ClankerTyper")
                 .font(.system(size: 13, weight: .semibold))
             Text(statusLabel)
                 .font(.system(size: 11))

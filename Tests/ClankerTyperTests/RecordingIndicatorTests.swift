@@ -1,6 +1,6 @@
 import AppKit
 import Testing
-@testable import Clanker
+@testable import ClankerTyper
 
 @Suite("Recording indicator drawing")
 struct RecordingIndicatorTests {

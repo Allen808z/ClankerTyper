@@ -2,20 +2,20 @@
 import PackageDescription
 
 let package = Package(
-    name: "Clanker",
+    name: "ClankerTyper",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Clanker", targets: ["Clanker"]),
+        .executable(name: "ClankerTyper", targets: ["ClankerTyper"]),
     ],
     targets: [
         .executableTarget(
-            name: "Clanker",
-            path: "Sources/Clanker"
+            name: "ClankerTyper",
+            path: "Sources/ClankerTyper"
         ),
         .testTarget(
-            name: "ClankerTests",
-            dependencies: ["Clanker"],
-            path: "Tests/ClankerTests"
+            name: "ClankerTyperTests",
+            dependencies: ["ClankerTyper"],
+            path: "Tests/ClankerTyperTests"
         ),
     ]
 )

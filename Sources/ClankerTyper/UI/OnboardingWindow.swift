@@ -8,10 +8,10 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Welcome to Clanker")
+            Text("Welcome to ClankerTyper")
                 .font(.system(size: 22, weight: .bold))
             Text(transcribeOnly
-                 ? "Hold Control + Option and speak, and Clanker writes down what you say. It never looks at your screen. Allow these so it works:"
+                 ? "Hold Control + Option and speak, and ClankerTyper writes down what you say. It never looks at your screen. Allow these so it works:"
                  : "A small blue helper that sits on your Mac. Hold Control + Option and ask it anything; it can see your screen when you ask and point at what it means. Allow these so it works:")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
@@ -55,7 +55,7 @@ final class OnboardingWindowController {
             }
             let hosting = NSHostingController(rootView: view)
             let created = NSWindow(contentViewController: hosting)
-            created.title = "Clanker"
+            created.title = "ClankerTyper"
             created.styleMask = [.titled, .closable]
             created.isReleasedWhenClosed = false
             created.center()

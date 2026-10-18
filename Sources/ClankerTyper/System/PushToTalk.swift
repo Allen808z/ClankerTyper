@@ -2,7 +2,7 @@ import AppKit
 
 /// Watches the Control + Option modifier pair and reports press and release.
 /// The global monitor needs Accessibility permission; without it the shortcut only works
-/// while Clanker itself is frontmost.
+/// while ClankerTyper itself is frontmost.
 @MainActor
 final class PushToTalk {
     var onPress: (() -> Void)?

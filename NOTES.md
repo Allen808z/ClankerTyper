@@ -1,4 +1,4 @@
-# Clanker: re-creation notes (reference app: HeyClicky)
+# ClankerTyper: re-creation notes (reference app: HeyClicky)
 
 Reference: `/Applications/HeyClicky.app` (bundle id `com.humansongs.clicky`, version 1.0.53 build 64,
 Developer ID signed). The original was inspected statically only: plists, `strings` and `otool`

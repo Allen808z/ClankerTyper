@@ -1,5 +1,5 @@
 import Testing
-@testable import Clanker
+@testable import ClankerTyper
 
 /// A tiny stand-in for the system spell checker, so the learning rules are tested exactly.
 private let ordinary: Set<String> = ["hello", "the", "meeting", "there", "their", "store", "clinker", "so", "we", "go"]
@@ -34,11 +34,11 @@ struct FillerTests {
 @Suite("Replacements and snippets")
 struct ReplacementTests {
     @Test func replacesWholeWordsIgnoringCase() {
-        #expect(TextProcessing.replacingWholeWords("Meet clinker today", from: "clinker", to: "Clanker") == "Meet Clanker today")
+        #expect(TextProcessing.replacingWholeWords("Meet clinker today", from: "clinker", to: "ClankerTyper") == "Meet ClankerTyper today")
     }
 
     @Test func doesNotReplaceInsideLongerWords() {
-        #expect(TextProcessing.replacingWholeWords("clinkers", from: "clinker", to: "Clanker") == "clinkers")
+        #expect(TextProcessing.replacingWholeWords("clinkers", from: "clinker", to: "ClankerTyper") == "clinkers")
     }
 
     @Test func longerPhraseWins() {
@@ -83,10 +83,10 @@ struct CorrectionFindingTests {
     @Test func findsSingleWordCorrection() {
         let found = TextProcessing.corrections(
             before: "Notes: ask clinker about the launch",
-            after: "Notes: ask Clanker about the launch",
+            after: "Notes: ask ClankerTyper about the launch",
             inserted: "ask clinker about the launch"
         )
-        #expect(found == [.init(heard: "clinker", corrected: "Clanker")])
+        #expect(found == [.init(heard: "clinker", corrected: "ClankerTyper")])
     }
 
     @Test func ignoresEditsOutsideThePastedText() {
@@ -111,7 +111,7 @@ struct CorrectionFindingTests {
 @Suite("What gets learned")
 struct LearningRuleTests {
     @Test func learnsUnusualWords() {
-        #expect(TextProcessing.shouldLearn(.init(heard: "clinker", corrected: "Clanker"), isOrdinaryWord: isOrdinary))
+        #expect(TextProcessing.shouldLearn(.init(heard: "clinker", corrected: "ClankerTyper"), isOrdinaryWord: isOrdinary))
         #expect(TextProcessing.shouldLearn(.init(heard: "Alan", corrected: "Allan"), isOrdinaryWord: isOrdinary))
     }
 

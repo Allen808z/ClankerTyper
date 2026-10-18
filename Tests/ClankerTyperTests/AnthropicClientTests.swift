@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Clanker
+@testable import ClankerTyper
 
 @Suite("Anthropic Messages API client")
 struct AnthropicClientTests {

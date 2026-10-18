@@ -43,7 +43,7 @@ struct AnthropicClient {
         var errorDescription: String? {
             switch self {
             case .missingAPIKey:
-                return "Add your Anthropic API key in Clanker Settings to get answers."
+                return "Add your Anthropic API key in ClankerTyper Settings to get answers."
             case .http(let status, let message):
                 return "Anthropic returned HTTP \(status): \(message)"
             case .emptyReply:

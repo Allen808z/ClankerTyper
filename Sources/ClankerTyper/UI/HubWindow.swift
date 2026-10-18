@@ -32,15 +32,15 @@ final class HubModel: ObservableObject {
     @Published var page: HubPage = .home
 }
 
-/// Clanker's main window.
+/// ClankerTyper's main window.
 @MainActor
 final class HubWindowController {
     private let model = HubModel()
-    private let store: ClankerStore
+    private let store: ClankerTyperStore
     private let permissions: PermissionState
     private var window: NSWindow?
 
-    init(store: ClankerStore, permissions: PermissionState) {
+    init(store: ClankerTyperStore, permissions: PermissionState) {
         self.store = store
         self.permissions = permissions
     }
@@ -50,7 +50,7 @@ final class HubWindowController {
         if window == nil {
             let root = HubView(model: model, store: store, permissions: permissions)
             let created = NSWindow(contentViewController: NSHostingController(rootView: root))
-            created.title = "Clanker"
+            created.title = "ClankerTyper"
             created.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             created.setContentSize(NSSize(width: 920, height: 640))
             created.minSize = NSSize(width: 760, height: 520)
@@ -66,7 +66,7 @@ final class HubWindowController {
 
 struct HubView: View {
     @ObservedObject var model: HubModel
-    @ObservedObject var store: ClankerStore
+    @ObservedObject var store: ClankerTyperStore
     let permissions: PermissionState
 
     var body: some View {
@@ -90,7 +90,7 @@ struct HubView: View {
 // MARK: - Home
 
 private struct HomePage: View {
-    @ObservedObject var store: ClankerStore
+    @ObservedObject var store: ClankerTyperStore
     @ObservedObject var model: HubModel
 
     var body: some View {
@@ -181,7 +181,7 @@ private struct ShortcutRow: View {
 // MARK: - History
 
 private struct HistoryPage: View {
-    @ObservedObject var store: ClankerStore
+    @ObservedObject var store: ClankerTyperStore
     @State private var search = ""
     @State private var confirmClear = false
 
@@ -269,7 +269,7 @@ private struct HistoryRow: View {
 // MARK: - Dictionary
 
 private struct DictionaryPage: View {
-    @ObservedObject var store: ClankerStore
+    @ObservedObject var store: ClankerTyperStore
     @State private var newWord = ""
     @State private var newFrom = ""
     @State private var newTo = ""
@@ -279,14 +279,14 @@ private struct DictionaryPage: View {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Dictionary").font(.system(size: 22, weight: .bold))
-                    Text("Names, brands and jargon Clanker should recognize. When you correct a pasted word that isn't everyday vocabulary, Clanker learns it here; delete anything it got wrong.")
+                    Text("Names, brands and jargon ClankerTyper should recognize. When you correct a pasted word that isn't everyday vocabulary, ClankerTyper learns it here; delete anything it got wrong.")
                         .foregroundStyle(.secondary)
                 }
 
                 GroupBox("Words to recognize") {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            TextField("Add a word, for example Clanker", text: $newWord)
+                            TextField("Add a word, for example ClankerTyper", text: $newWord)
                                 .textFieldStyle(.roundedBorder)
                                 .onSubmit(addWord)
                             Button("Add", action: addWord)
@@ -311,7 +311,7 @@ private struct DictionaryPage: View {
 
                 GroupBox("Replacements") {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("When Clanker hears the first, it types the second.")
+                        Text("When ClankerTyper hears the first, it types the second.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         HStack {
@@ -375,7 +375,7 @@ private struct LearnedBadge: View {
 // MARK: - Snippets
 
 private struct SnippetsPage: View {
-    @ObservedObject var store: ClankerStore
+    @ObservedObject var store: ClankerTyperStore
     @State private var trigger = ""
     @State private var expansion = ""
 
@@ -384,7 +384,7 @@ private struct SnippetsPage: View {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Snippets").font(.system(size: 22, weight: .bold))
-                    Text("Say a short phrase and Clanker types the full text: an address, a link, a signature.")
+                    Text("Say a short phrase and ClankerTyper types the full text: an address, a link, a signature.")
                         .foregroundStyle(.secondary)
                 }
 

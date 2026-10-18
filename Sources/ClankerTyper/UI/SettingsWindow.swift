@@ -2,14 +2,14 @@ import AppKit
 import Speech
 import SwiftUI
 
-/// Appends permission changes to ~/Library/Logs/Clanker/permissions.log so a stuck state can be
+/// Appends permission changes to ~/Library/Logs/ClankerTyper/permissions.log so a stuck state can be
 /// diagnosed from what this process actually saw.
 enum PermissionLog {
     static func record(_ states: [PermissionKind: Bool]) {
         let line = PermissionKind.allCases.map { "\($0.title)=\(states[$0] ?? false)" }.joined(separator: " ")
         let entry = "\(ISO8601DateFormatter().string(from: Date())) pid=\(ProcessInfo.processInfo.processIdentifier) \(line)\n"
         guard let logs = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("Logs/Clanker", isDirectory: true) else { return }
+            .appendingPathComponent("Logs/ClankerTyper", isDirectory: true) else { return }
         try? FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
         let file = logs.appendingPathComponent("permissions.log")
         if let handle = try? FileHandle(forWritingTo: file) {
@@ -28,7 +28,7 @@ final class PermissionState: ObservableObject {
     @Published private(set) var granted: [PermissionKind: Bool] = [:]
     private var timer: Timer?
 
-    /// Granting a permission happens in System Settings, which does not activate Clanker, so
+    /// Granting a permission happens in System Settings, which does not activate ClankerTyper, so
     /// polling is the only reliable way to notice the change while our windows are open.
     init() {
         refresh()
@@ -130,7 +130,7 @@ struct SettingsView: View {
                 Toggle("Remove filler words (um, uh, euh)", isOn: $removeFillers)
                 Toggle("Fit spacing and capitals to the text around the cursor", isOn: $smartSpacing)
                 Toggle("Learn from my corrections", isOn: $learnCorrections)
-                Text("When you fix a pasted word that isn't everyday vocabulary, like a name or a brand, Clanker remembers it. Ordinary words and accidental edits are not learned. Learned words appear in Dictionary.")
+                Text("When you fix a pasted word that isn't everyday vocabulary, like a name or a brand, ClankerTyper remembers it. Ordinary words and accidental edits are not learned. Learned words appear in Dictionary.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle("Clean up grammar with my local model", isOn: $aiCleanup)
@@ -148,7 +148,7 @@ struct SettingsView: View {
             Section("Mode") {
                 Toggle("Transcribe only: never look at my screen", isOn: $transcribeOnly)
                 Text(transcribeOnly
-                     ? "Clanker only writes down what you say. Nothing is sent to a model unless grammar cleanup is on, and no screenshots are taken."
+                     ? "ClankerTyper only writes down what you say. Nothing is sent to a model unless grammar cleanup is on, and no screenshots are taken."
                      : "Ask mode: what you say is sent with screenshots to the model below, and the answer is shown in a card.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

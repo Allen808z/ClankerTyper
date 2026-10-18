@@ -29,7 +29,7 @@ enum TextInsertion {
         case notPasted
         /// The cursor was in a password field, so nothing was typed.
         case secureField
-        /// macOS does not let Clanker send keystrokes yet.
+        /// macOS does not let ClankerTyper send keystrokes yet.
         case notAllowed
     }
 

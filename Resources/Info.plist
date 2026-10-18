@@ -5,9 +5,9 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Clanker</string>
+	<string>ClankerTyper</string>
 	<key>CFBundleExecutable</key>
-	<string>Clanker</string>
+	<string>ClankerTyper</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Clanker</string>
+	<string>ClankerTyper</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -27,11 +27,11 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Clanker uses your microphone so you can talk to it while you hold the shortcut.</string>
+	<string>ClankerTyper uses your microphone so you can talk to it while you hold the shortcut.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Clanker turns what you say into text on this Mac.</string>
+	<string>ClankerTyper turns what you say into text on this Mac.</string>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>Clanker looks at your screen only when you ask it for help.</string>
+	<string>ClankerTyper looks at your screen only when you ask it for help.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

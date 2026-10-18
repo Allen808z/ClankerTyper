@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds Clanker with SwiftPM and wraps it in a signed .app bundle under build/.
+# Builds ClankerTyper with SwiftPM and wraps it in a signed .app bundle under build/.
 # Ad-hoc signing only: no Developer ID, no notarization.
 set -euo pipefail
 
@@ -8,11 +8,11 @@ cd "$ROOT"
 
 swift build -c release
 BIN_DIR="$(swift build -c release --show-bin-path)"
-APP="$ROOT/build/Clanker.app"
+APP="$ROOT/build/ClankerTyper.app"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/Clanker" "$APP/Contents/MacOS/Clanker"
+cp "$BIN_DIR/ClankerTyper" "$APP/Contents/MacOS/ClankerTyper"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 
 ICON_PNG="$ROOT/build/AppIcon-1024.png"

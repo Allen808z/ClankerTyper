@@ -17,7 +17,7 @@ struct HistoryItem: Codable, Identifiable, Equatable {
 struct VocabularyWord: Codable, Identifiable, Equatable {
     var id = UUID()
     var word: String
-    /// True when Clanker learned it from a correction, false when the user added it.
+    /// True when ClankerTyper learned it from a correction, false when the user added it.
     var learned: Bool
     var added: Date
 }
@@ -38,9 +38,9 @@ struct Snippet: Codable, Identifiable, Equatable {
     var expansion: String
 }
 
-/// Everything Clanker keeps between launches, in one JSON file under Application Support.
+/// Everything ClankerTyper keeps between launches, in one JSON file under Application Support.
 @MainActor
-final class ClankerStore: ObservableObject {
+final class ClankerTyperStore: ObservableObject {
     struct Contents: Codable {
         var history: [HistoryItem] = []
         var vocabulary: [VocabularyWord] = []
@@ -76,8 +76,21 @@ final class ClankerStore: ObservableObject {
     }
 
     static func defaultDirectory() -> URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("Clanker", isDirectory: true)
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let current = support.appendingPathComponent("ClankerTyper", isDirectory: true)
+        // The app was called Clanker before; bring its saved data along once.
+        let previous = support.appendingPathComponent("Clanker", isDirectory: true)
+        let manager = FileManager.default
+        if !manager.fileExists(atPath: current.path), manager.fileExists(atPath: previous.path) {
+            do {
+                try manager.moveItem(at: previous, to: current)
+                AppLog.write("moved saved data from Application Support/Clanker to ClankerTyper")
+            } catch {
+                AppLog.write("could not move saved data from Application Support/Clanker: \(error.localizedDescription)")
+                return previous
+            }
+        }
+        return current
     }
 
     // MARK: - History

@@ -1,4 +1,4 @@
-# Clanker
+# ClankerTyper
 
 A macOS dictation app. Hold a shortcut, speak, and your words are typed where your cursor is.
 It began as a re-creation of HeyClicky's core loop (see [NOTES.md](NOTES.md)) and now borrows
@@ -12,8 +12,8 @@ Requires macOS 14+ and the Swift 5.10+ toolchain (Command Line Tools is enough).
 ./scripts/install.sh
 ```
 
-This builds Clanker, quits any running copy, installs it as `/Applications/Clanker.app` and
-opens it. Run it again after each change. `./scripts/build-app.sh` only builds `build/Clanker.app`.
+This builds ClankerTyper, quits any running copy, installs it as `/Applications/ClankerTyper.app` and
+opens it. Run it again after each change. `./scripts/build-app.sh` only builds `build/ClankerTyper.app`.
 
 Allow Microphone, Speech Recognition and Accessibility when asked.
 
@@ -32,14 +32,14 @@ Allow Microphone, Speech Recognition and Accessibility when asked.
   on the clipboard. Password fields are never typed into.
 - Filler words are removed, spacing and capitals fit the text around the cursor, and sound is
   muted while you dictate. Each can be switched off in Settings.
-- When you correct a pasted word that isn't everyday vocabulary (a name, a brand), Clanker
+- When you correct a pasted word that isn't everyday vocabulary (a name, a brand), ClankerTyper
   learns it. Ordinary words and accidental one-letter deletions are not learned.
 - Optional grammar cleanup through a local Ollama model.
 
-The main window (menu bar icon → Open Clanker) has Home (stats and recent dictations),
+The main window (menu bar icon → Open ClankerTyper) has Home (stats and recent dictations),
 History, Dictionary (your words, replacements and what was learned), Snippets and Settings.
-Data is stored in `~/Library/Application Support/Clanker/store.json`; logs are in
-`~/Library/Logs/Clanker/`.
+Data is stored in `~/Library/Application Support/ClankerTyper/store.json`; logs are in
+`~/Library/Logs/ClankerTyper/`.
 
 An older ask mode (screenshots sent to Claude or Ollama, answers in a card) is still available
 by turning off "Transcribe only" in Settings.

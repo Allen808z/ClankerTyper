@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import Clanker
+@testable import ClankerTyper
 
 @Suite("Pointing tag parsing")
 struct PointingParserTests {

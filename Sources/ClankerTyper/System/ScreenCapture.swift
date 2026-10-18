@@ -17,7 +17,7 @@ enum ScreenCapture {
         var errorDescription: String? {
             switch self {
             case .permissionMissing:
-                return "Clanker needs Screen Recording permission to see your screen. Allow it, then restart Clanker."
+                return "ClankerTyper needs Screen Recording permission to see your screen. Allow it, then restart ClankerTyper."
             case .noDisplays:
                 return "No display was found to capture."
             case .encodingFailed:
@@ -31,7 +31,7 @@ enum ScreenCapture {
         guard CGPreflightScreenCaptureAccess() else { throw CaptureError.permissionMissing }
 
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        // Leave Clanker's own overlay and card out of the picture.
+        // Leave ClankerTyper's own overlay and card out of the picture.
         let ownBundleID = Bundle.main.bundleIdentifier
         let ownApps = content.applications.filter { $0.bundleIdentifier == ownBundleID }
 

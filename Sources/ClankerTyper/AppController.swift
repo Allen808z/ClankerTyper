@@ -1,6 +1,6 @@
 import AppKit
 
-/// Owns Clanker's pieces and runs one recording at a time.
+/// Owns ClankerTyper's pieces and runs one recording at a time.
 ///
 /// Dictation (transcribe-only mode): hold Control + Option and speak, or double-tap it for
 /// hands-free and tap again to stop. The words are cleaned up, pasted where you were typing,
@@ -29,7 +29,7 @@ final class CompanionController {
     private let muter = AudioMuter()
     private let watcher = CorrectionWatcher()
     private let permissions = PermissionState()
-    let store = ClankerStore(directory: ClankerStore.defaultDirectory())
+    let store = ClankerTyperStore(directory: ClankerTyperStore.defaultDirectory())
     private lazy var hub = HubWindowController(store: store, permissions: permissions)
     private lazy var onboardingWindow = OnboardingWindowController(permissions: permissions)
     private var menu: StatusMenu?
@@ -156,7 +156,7 @@ final class CompanionController {
 
     private func beginRecording() {
         guard Permissions.isGranted(.microphone), Permissions.isGranted(.speech) else {
-            report("Allow Microphone and Speech Recognition in Permissions to talk to Clanker.")
+            report("Allow Microphone and Speech Recognition in Permissions to talk to ClankerTyper.")
             onboardingWindow.show()
             return
         }
@@ -276,7 +276,7 @@ final class CompanionController {
                 report("That's a password field, so nothing was typed. It's on your clipboard.")
             case .notAllowed:
                 outcome = "copied"
-                report("It's on your clipboard. Allow Clanker under Accessibility to paste it for you.")
+                report("It's on your clipboard. Allow ClankerTyper under Accessibility to paste it for you.")
             }
         } else {
             TextInsertion.putOnClipboard(text)

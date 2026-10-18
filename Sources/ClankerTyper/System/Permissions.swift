@@ -28,9 +28,9 @@ enum PermissionKind: CaseIterable, Identifiable {
 
     var reason: String {
         switch self {
-        case .microphone: return "So Clanker can hear you while you hold the shortcut."
+        case .microphone: return "So ClankerTyper can hear you while you hold the shortcut."
         case .speech: return "To turn what you say into text on this Mac."
-        case .screen: return "To see your screen when you ask for help. Restart Clanker after allowing."
+        case .screen: return "To see your screen when you ask for help. Restart ClankerTyper after allowing."
         case .accessibility: return "To notice the Control + Option shortcut while you use other apps."
         }
     }

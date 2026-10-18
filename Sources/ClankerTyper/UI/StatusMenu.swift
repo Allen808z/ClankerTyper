@@ -1,6 +1,6 @@
 import AppKit
 
-/// Menu bar item. Clanker has no Dock icon; the main window opens from here.
+/// Menu bar item. ClankerTyper has no Dock icon; the main window opens from here.
 @MainActor
 final class StatusMenu: NSObject {
     var onOpenHub: (() -> Void)?
@@ -25,7 +25,7 @@ final class StatusMenu: NSObject {
     override init() {
         super.init()
         if let button = item.button {
-            button.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "Clanker")
+            button.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "ClankerTyper")
             button.image?.isTemplate = true
         }
         let menu = NSMenu()
@@ -33,7 +33,7 @@ final class StatusMenu: NSObject {
         hint.isEnabled = false
         hintItem = hint
         menu.addItem(hint)
-        menu.addItem(makeItem("Open Clanker…", #selector(openHub), "o"))
+        menu.addItem(makeItem("Open ClankerTyper…", #selector(openHub), "o"))
         let pasteLast = makeItem("Paste last transcript", #selector(pasteLastTranscript), "v")
         pasteLast.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(pasteLast)
@@ -62,7 +62,7 @@ final class StatusMenu: NSObject {
         menu.addItem(makeItem("Permissions…", #selector(permissions), ""))
         menu.addItem(makeItem("Settings…", #selector(settings), ","))
         menu.addItem(.separator())
-        menu.addItem(makeItem("Quit Clanker", #selector(quit), "q"))
+        menu.addItem(makeItem("Quit ClankerTyper", #selector(quit), "q"))
         item.menu = menu
     }
 

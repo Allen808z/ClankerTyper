@@ -141,7 +141,7 @@ enum TextProcessing {
         let corrected: String
     }
 
-    /// Finds word-for-word corrections the user made inside text that Clanker pasted.
+    /// Finds word-for-word corrections the user made inside text that ClankerTyper pasted.
     /// `before` is the field's text just after pasting, `after` is the text once the user is done.
     /// Edits outside the pasted words, and rewrites of more than three words, are ignored.
     static func corrections(before: String, after: String, inserted: String) -> [Correction] {
@@ -177,12 +177,12 @@ enum TextProcessing {
             .map { Correction(heard: $0, corrected: $1) }
     }
 
-    /// Decides whether a correction is worth remembering. Clanker learns words that are not part
+    /// Decides whether a correction is worth remembering. ClankerTyper learns words that are not part
     /// of everyday language (names, brands, jargon). It skips:
     /// - corrections to an ordinary word, which are usually a one-off choice, not a mishearing;
     /// - an ordinary word with one letter removed, which leaves a non-word ("hello" -> "helo"):
     ///   that is an accidental edit and does not mean anything.
-    /// A real word swapped for an unusual one ("clinker" -> "Clanker") is learned: that is the
+    /// A real word swapped for an unusual one ("clinker" -> "ClankerTyper") is learned: that is the
     /// recognizer mishearing a name.
     static func shouldLearn(_ correction: Correction, isOrdinaryWord: (String) -> Bool) -> Bool {
         let heard = correction.heard
