@@ -25,6 +25,9 @@ enum AppSettings {
         static let talkKey = "talkKey"
         static let shortcutPrefix = "shortcut."
         static let playSounds = "playSounds"
+        static let meetingOffers = "meetingOffers"
+        static let meetingLanguage = "meetingLanguage"
+        static let keepMeetingAudio = "keepMeetingAudio"
         static let onboardingDone = "onboardingDone"
     }
 

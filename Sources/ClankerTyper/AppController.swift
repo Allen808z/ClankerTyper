@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 /// Owns ClankerTyper's pieces and runs one recording at a time.
 ///
@@ -37,7 +38,8 @@ final class CompanionController {
     private var rewriting = false
     private let permissions = PermissionState()
     let store = ClankerTyperStore(directory: ClankerTyperStore.defaultDirectory())
-    private lazy var hub = HubWindowController(store: store, permissions: permissions)
+    let meetings = MeetingController(store: MeetingStore(directory: MeetingStore.defaultDirectory()))
+    private lazy var hub = HubWindowController(store: store, meetings: meetings, permissions: permissions)
     private lazy var onboardingWindow = OnboardingWindowController(permissions: permissions)
     private var menu: StatusMenu?
     private var hotKeys: [HotKey] = []
@@ -65,6 +67,7 @@ final class CompanionController {
         let date: Date
     }
     private var lastPaste: LastPaste?
+    private var subscriptions: Set<AnyCancellable> = []
     private lazy var scratchpad = ScratchpadWindowController(store: store)
 
     func start() {
@@ -81,6 +84,7 @@ final class CompanionController {
         menu.onSelectionAction = { [weak self] style in self?.rewriteSelection(style) }
         menu.customActions = { [weak self] in self?.store.customActions ?? [] }
         menu.onManageActions = { [weak self] in self?.hub.show(.actions) }
+        menu.onToggleMeeting = { [weak self] in self?.toggleMeeting() }
         menu.onToggleCompanion = { [weak self] visible in
             AppSettings.showCompanion = visible
             self?.overlay.setVisible(visible)
@@ -122,6 +126,12 @@ final class CompanionController {
         watcher.onCorrections = { [weak self] corrections in self?.learn(corrections) }
         selectionToolbar.onAction = { [weak self] style, target in self?.rewriteSelection(style, target: target) }
         selectionToolbar.customActions = { [weak self] in self?.store.customActions ?? [] }
+        meetings.isDictating = { [weak self] in self?.dictation.isRunning ?? false }
+        meetings.onOpenMeeting = { [weak self] id in self?.hub.show(.meetings, meeting: id) }
+        meetings.$phase
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.refreshMenu() }
+            .store(in: &subscriptions)
         selectionToolbar.onManageActions = { [weak self] in self?.hub.show(.actions) }
         selectionToolbar.isBusy = { [weak self] in
             guard let self else { return true }
@@ -215,7 +225,8 @@ final class CompanionController {
         guard !startCuePlayed else { return }
         startCuePlayed = true
         sounds.playStart()
-        if AppSettings.muteAudio {
+        // Never mute during a meeting recording: that would silence the call.
+        if AppSettings.muteAudio, !meetings.isRecording {
             // Let the sound finish before muting the Mac's output.
             try? await Task.sleep(nanoseconds: UInt64(SoundCues.startDuration * 1_000_000_000))
             if case .idle = recording { return }
@@ -228,6 +239,12 @@ final class CompanionController {
     }
 
     func showStartWindow() {
+        // `--page meetings` (or any page name) opens the main window there, for checking the UI.
+        let args = CommandLine.arguments
+        if let flag = args.firstIndex(of: "--page"), args.count > flag + 1, let page = HubPage(rawValue: args[flag + 1]) {
+            hub.show(page)
+            return
+        }
         if AppSettings.onboardingDone {
             hub.show(.home)
         } else {
@@ -740,8 +757,17 @@ final class CompanionController {
     }
 
     /// Applies the transcribe-only switch to the card and menu.
+    private func toggleMeeting() {
+        if meetings.isRecording {
+            meetings.stop()
+        } else {
+            Task { await meetings.start() }
+        }
+    }
+
     private func applyMode() {
         card.model.transcribeOnly = AppSettings.transcribeOnly
+        meetings.applySettings()
         if AppSettings.selectionToolbar {
             selectionToolbar.start()
         } else if selectionToolbar.isRunning {
@@ -751,6 +777,7 @@ final class CompanionController {
     }
 
     private func refreshMenu() {
+        menu?.setMeetingRecording(meetings.isRecording)
         menu?.refresh(
             showCompanion: AppSettings.showCompanion,
             speakReplies: AppSettings.speakReplies,

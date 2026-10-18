@@ -192,7 +192,7 @@ final class SelectionToolbar {
     }
 
     private func makePanel() -> NSPanel {
-        let panel = ToolbarPanel(
+        let panel = NonActivatingPanel(
             contentRect: NSRect(x: 0, y: 0, width: 352, height: 36),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -217,14 +217,15 @@ final class SelectionToolbar {
     }
 }
 
-/// Never becomes key or main, so clicking it leaves the other app focused with its selection.
-private final class ToolbarPanel: NSPanel {
+/// Never becomes key or main, so clicking it leaves the other app focused (and its selection,
+/// or the call window, in front). Used by the selection toolbar and the meeting panel.
+final class NonActivatingPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }
 
 /// Buttons respond to the first click even though ClankerTyper is not the active app.
-private final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 

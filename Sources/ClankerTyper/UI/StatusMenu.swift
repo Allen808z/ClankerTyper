@@ -6,6 +6,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     var onOpenHub: (() -> Void)?
     var onUndoLast: (() -> Void)?
     var onOpenScratchpad: (() -> Void)?
+    var onToggleMeeting: (() -> Void)?
     var onSelectionAction: ((Rewriter.Style) -> Void)?
     var onManageActions: (() -> Void)?
     /// The user's saved actions, read each time the submenu opens.
@@ -29,6 +30,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     private var hintItem: NSMenuItem?
     private var languageItems: [NSMenuItem] = []
     private let selectionMenu = NSMenu(title: "Highlighted text")
+    private var meetingItem: NSMenuItem?
     static var readyHint: String { "Hold \(AppSettings.talkKey.symbol) to talk" }
     private var shortcutItems: [HotKey.Shortcut: NSMenuItem] = [:]
 
@@ -53,6 +55,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(undo)
         shortcutItems[.undoLast] = undo
         menu.addItem(makeItem("Open Scratchpad", #selector(openScratchpad), ""))
+        let meeting = makeItem("Start meeting recording", #selector(toggleMeeting), "")
+        meetingItem = meeting
+        menu.addItem(meeting)
         menu.addItem(.separator())
         let fix = makeItem("Fix grammar of selection", #selector(fixGrammar), "g")
         fix.keyEquivalentModifierMask = [.control, .option]
@@ -133,6 +138,11 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     @objc private func fixGrammar() { onFixGrammar?() }
     @objc private func undoLast() { onUndoLast?() }
     @objc private func openScratchpad() { onOpenScratchpad?() }
+    @objc private func toggleMeeting() { onToggleMeeting?() }
+
+    func setMeetingRecording(_ recording: Bool) {
+        meetingItem?.title = recording ? "Stop meeting recording" : "Start meeting recording"
+    }
 
     /// Rebuilt each time it opens, so new saved actions show up.
     func menuNeedsUpdate(_ menu: NSMenu) {

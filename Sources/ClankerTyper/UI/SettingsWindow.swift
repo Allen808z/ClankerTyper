@@ -101,6 +101,8 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.launchAtLogin) private var launchAtLogin = true
     @AppStorage(AppSettings.Key.talkKey) private var talkKey = TalkKey.controlOption.rawValue
     @AppStorage(AppSettings.Key.playSounds) private var playSounds = true
+    @AppStorage(AppSettings.Key.meetingOffers) private var meetingOffers = true
+    @AppStorage(AppSettings.Key.keepMeetingAudio) private var keepMeetingAudio = true
     @State private var loginState = LoginItem.state
 
     var body: some View {
@@ -177,6 +179,17 @@ struct SettingsView: View {
                     TextField("Ollama model", text: $ollamaModel)
                 }
                 Text(engineNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Meetings") {
+                Toggle("Offer to record when a call starts", isOn: $meetingOffers)
+                Text("When Zoom, Teams, FaceTime, Webex, Slack, Discord or a Meet page uses the microphone, a small card offers to record. Nothing records without your click. Let everyone know you're recording.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Keep recordings after the notes are made", isOn: $keepMeetingAudio)
+                Text("Records your microphone and the Mac's sound (the other people), so it needs Screen Recording. Transcripts and summaries are made on this Mac; each language's transcription model is downloaded from Apple once.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

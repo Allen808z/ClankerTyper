@@ -2,13 +2,14 @@ import AppKit
 import SwiftUI
 
 enum HubPage: String, CaseIterable, Identifiable {
-    case home, history, dictionary, snippets, actions, settings
+    case home, meetings, history, dictionary, snippets, actions, settings
 
     var id: Self { self }
 
     var title: String {
         switch self {
         case .home: return "Home"
+        case .meetings: return "Meetings"
         case .history: return "History"
         case .dictionary: return "Dictionary"
         case .snippets: return "Snippets"
@@ -20,6 +21,7 @@ enum HubPage: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .home: return "house"
+        case .meetings: return "person.2.wave.2"
         case .history: return "clock.arrow.circlepath"
         case .dictionary: return "character.book.closed"
         case .snippets: return "text.badge.plus"
@@ -32,6 +34,7 @@ enum HubPage: String, CaseIterable, Identifiable {
 @MainActor
 final class HubModel: ObservableObject {
     @Published var page: HubPage = .home
+    @Published var selectedMeeting: Meeting.ID?
 }
 
 /// ClankerTyper's main window.
@@ -40,17 +43,20 @@ final class HubWindowController {
     private let model = HubModel()
     private let store: ClankerTyperStore
     private let permissions: PermissionState
+    private let meetings: MeetingController
     private var window: NSWindow?
 
-    init(store: ClankerTyperStore, permissions: PermissionState) {
+    init(store: ClankerTyperStore, meetings: MeetingController, permissions: PermissionState) {
         self.store = store
+        self.meetings = meetings
         self.permissions = permissions
     }
 
-    func show(_ page: HubPage) {
+    func show(_ page: HubPage, meeting: Meeting.ID? = nil) {
         model.page = page
+        if let meeting { model.selectedMeeting = meeting }
         if window == nil {
-            let root = HubView(model: model, store: store, permissions: permissions)
+            let root = HubView(model: model, store: store, meetings: meetings, permissions: permissions)
             let created = NSWindow(contentViewController: NSHostingController(rootView: root))
             created.title = "ClankerTyper"
             created.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
@@ -69,6 +75,7 @@ final class HubWindowController {
 struct HubView: View {
     @ObservedObject var model: HubModel
     @ObservedObject var store: ClankerTyperStore
+    let meetings: MeetingController
     let permissions: PermissionState
 
     var body: some View {
@@ -80,6 +87,7 @@ struct HubView: View {
         } detail: {
             switch model.page {
             case .home: HomePage(store: store, model: model)
+            case .meetings: MeetingsPage(controller: meetings, store: meetings.store, selection: $model.selectedMeeting)
             case .history: HistoryPage(store: store)
             case .dictionary: DictionaryPage(store: store)
             case .snippets: SnippetsPage(store: store)

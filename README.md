@@ -72,6 +72,28 @@ History, Dictionary (your words, replacements and what was learned), Snippets an
 Data is stored in `~/Library/Application Support/ClankerTyper/store.json`; logs are in
 `~/Library/Logs/ClankerTyper/`.
 
+## Meetings
+
+When Zoom, Teams, FaceTime, Webex, Slack, Discord or a Google Meet page starts using the
+microphone, a small card offers to record and summarize the call. Nothing records without your
+click; let everyone know you're recording. You can also start from the menu bar or the
+Meetings page.
+
+- Records your microphone (You) and the call's sound (Others). When the call app is known, only
+  its sound is recorded, so music or a video playing elsewhere stays out.
+- Stops when you click Stop, when the call app quits, or after five quiet minutes.
+- Transcribes on this Mac with timestamps, removes the call's echo from your microphone track,
+  and writes a summary, key points, decisions and action items (checkable) with the on-device
+  model. Long meetings are summarized in parts.
+- English and French. Each language's transcription model is downloaded from Apple once;
+  recordings never leave the Mac. Needs Screen Recording permission to hear the call.
+- Copy the notes, export them as Markdown, transcribe or summarize again, or delete the
+  recording and keep the notes.
+
+For development: `open -n /Applications/ClankerTyper.app --args --meeting-selftest 12` records
+for 12 seconds into a temporary folder and logs both transcripts;
+`--meeting-pipeline-test 15` runs a whole meeting there; `--page meetings` opens that page.
+
 An older ask mode (your question and screenshots sent to a vision model in Ollama on this Mac,
 answers in a card) is still available by turning off "Transcribe only" in Settings.
 
